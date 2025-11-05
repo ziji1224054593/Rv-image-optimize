@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.vite
+
+# 开发文件（可选，如果要提交到 git）
+# index.html
+# example/main.jsx

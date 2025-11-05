@@ -1,0 +1,55 @@
+{
+  "name": "image-optimize",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
+  "main": "./dist/image-optimize.cjs.js",
+  "module": "./dist/image-optimize.es.js",
+  "browser": "./dist/image-optimize.umd.js",
+  "files": [
+    "dist",
+    "src",
+    "imageOptimize.js"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/image-optimize.es.js",
+      "require": "./dist/image-optimize.cjs.js",
+      "browser": "./dist/image-optimize.umd.js"
+    },
+    "./utils": "./imageOptimize.js",
+    "./styles": "./dist/style.css"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "image",
+    "optimize",
+    "lazy-load",
+    "cdn",
+    "webp",
+    "avif",
+    "responsive",
+    "react",
+    "component"
+  ],
+  "author": "",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/image-optimize.git"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.8",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
