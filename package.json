@@ -39,8 +39,8 @@
   "author": "",
   "license": "ISC",
   "repository": {
-    "type": "git",
-    "url": "https://github.com/your-username/image-optimize.git"
+    "type": "gitee",
+    "url": "https://gitee.com/imageOptimize/image-optimize.git"
   },
   "peerDependencies": {
     "react": ">=16.8.0",
