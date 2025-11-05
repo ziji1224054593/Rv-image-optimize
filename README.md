@@ -13,7 +13,7 @@
 ## 安装
 
 ```bash
-npm install image-optimize
+npm install liyunxia-image-optimize
 ```
 
 ## 使用方法
@@ -21,8 +21,8 @@ npm install image-optimize
 ### React 组件
 
 ```jsx
-import { LazyImage } from 'image-optimize';
-import 'image-optimize/styles';
+import { LazyImage } from 'liyunxia-image-optimize';
+import 'liyunxia-image-optimize/styles';
 
 function App() {
   return (
@@ -47,7 +47,7 @@ function App() {
 ### 工具函数
 
 ```javascript
-import { optimizeImageUrl, generateResponsiveImage } from 'image-optimize';
+import { optimizeImageUrl, generateResponsiveImage } from 'liyunxia-image-optimize';
 
 // 优化单个图片URL
 const optimizedUrl = optimizeImageUrl('https://example.com/image.jpg', {
@@ -115,7 +115,7 @@ const responsiveImg = generateResponsiveImage('https://example.com/image.jpg', {
 
 ## 样式自定义
 
-`image-optimize` 使用命名空间前缀（`image-optimize-`）避免样式冲突，并提供了多种自定义方式：
+`liyunxia-image-optimize` 使用命名空间前缀（`image-optimize-`）避免样式冲突，并提供了多种自定义方式：
 
 ### 1. 使用 CSS 变量（推荐）
 
