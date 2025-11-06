@@ -9,7 +9,8 @@
   "files": [
     "dist",
     "src",
-    "imageOptimize.js"
+    "imageOptimize.js",
+    "losslessCompress.js"
   ],
   "exports": {
     ".": {
@@ -18,6 +19,7 @@
       "browser": "./dist/image-optimize.umd.js"
     },
     "./utils": "./imageOptimize.js",
+    "./lossless": "./losslessCompress.js",
     "./styles": "./dist/style.css"
   },
   "scripts": {
