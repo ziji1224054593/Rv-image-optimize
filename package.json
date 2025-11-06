@@ -1,6 +1,6 @@
 {
-  "name": "liyunxia-image-optimize",
-  "version": "1.0.0",
+  "name": "rv-image-optimize",
+  "version": "1.0.2",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs.js",

@@ -30,9 +30,10 @@ import './LazyImage.css';
  * @param {boolean} props.showPlaceholderIcon - 是否显示占位符图标
  * @param {boolean} props.showErrorMessage - 是否显示错误信息
  * @param {string|null} props.errorSrc - 错误时的默认图片（可选，如果为null则不加载错误图片，直接显示错误占位符）
- * @param {Function} props.onLoad - 加载成功回调
+ * @param {Function} props.onLoad - 加载成功回调 (event, optimizationInfo) - optimizationInfo包含优化信息
+ * @param {Function} props.onOptimization - 优化完成回调 (optimizationInfo) - 专门用于接收优化信息
  * @param {Function} props.onError - 加载失败回调
- * @param {Function} props.onClick - 点击回调
+ * @param {Function} props.onClick - 点击回调 (event, imageInfo) - imageInfo包含图片相关信息
  */
 export default function LazyImage({
   src = '',
@@ -55,12 +56,14 @@ export default function LazyImage({
   showErrorMessage = false,
   errorSrc = null, // 默认为 null，不加载错误图片，直接显示错误占位符
   onLoad = null,
+  onOptimization = null, // 优化完成回调
   onError = null,
   onClick = null,
 }) {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
   const observerRef = useRef(null);
+  const optimizationInfoRef = useRef(null); // 存储优化信息，供 onClick 使用
   const [isLoaded, setIsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -153,11 +156,44 @@ export default function LazyImage({
     setHasError(false);
     setLockedSrc(currentSrc);
     
-    // 输出优化前后的图片大小对比
+    // 获取优化信息并传递给回调
+    let optimizationInfo = null;
     if (src && currentSrc !== src) {
       try {
         const comparison = await compareImageSizes(src, currentSrc);
         if (comparison.originalSize !== null && comparison.optimizedSize !== null) {
+          // 构建优化信息对象
+          optimizationInfo = {
+            // 原始信息
+            originalUrl: comparison.originalUrl,
+            originalSize: comparison.originalSize,
+            originalSizeFormatted: comparison.originalSizeFormatted,
+            
+            // 优化后信息
+            optimizedUrl: comparison.optimizedUrl,
+            optimizedSize: comparison.optimizedSize,
+            optimizedSizeFormatted: comparison.optimizedSizeFormatted,
+            
+            // 节省信息
+            savedSize: comparison.savedSize,
+            savedSizeFormatted: comparison.savedSizeFormatted,
+            savedPercentage: comparison.savedPercentage,
+            
+            // 其他信息
+            cdn: comparison.cdn,
+            isOptimizationEffective: comparison.isOptimizationEffective,
+            warningMessage: comparison.warningMessage,
+          };
+          
+          // 存储优化信息到 ref，供 onClick 使用
+          optimizationInfoRef.current = optimizationInfo;
+          
+          // 调用优化完成回调
+          if (onOptimization) {
+            onOptimization(optimizationInfo);
+          }
+          
+          // 控制台日志（已注释）
           // const groupTitle = comparison.isOptimizationEffective 
           //   ? `✅ 图片优化效果 - ${alt || '图片'}` 
           //   : `❌ 图片优化无效 - ${alt || '图片'}`;
@@ -191,19 +227,66 @@ export default function LazyImage({
             // }
           }
           
-          console.groupEnd();
+          // console.groupEnd();
         } else {
+          // 即使无法获取大小，也提供基本信息
+          optimizationInfo = {
+            originalUrl: src,
+            optimizedUrl: currentSrc,
+            originalSize: null,
+            originalSizeFormatted: null,
+            optimizedSize: null,
+            optimizedSizeFormatted: null,
+            savedSize: null,
+            savedSizeFormatted: null,
+            savedPercentage: null,
+            cdn: detectCDN(src),
+            isOptimizationEffective: null,
+            warningMessage: '⚠️ 无法获取图片大小（可能由于CORS限制）',
+          };
+          
+          // 存储优化信息到 ref，供 onClick 使用
+          optimizationInfoRef.current = optimizationInfo;
+          
+          if (onOptimization) {
+            onOptimization(optimizationInfo);
+          }
+          
           // console.log('⚠️ 无法获取图片大小（可能由于CORS限制）');
           // console.log('原始URL:', src);
           // console.log('优化URL:', currentSrc);
         }
       } catch (error) {
         console.warn('获取图片大小对比失败:', error);
+        
+        // 即使出错也提供基本信息
+        optimizationInfo = {
+          originalUrl: src,
+          optimizedUrl: currentSrc,
+          originalSize: null,
+          originalSizeFormatted: null,
+          optimizedSize: null,
+          optimizedSizeFormatted: null,
+          savedSize: null,
+          savedSizeFormatted: null,
+          savedPercentage: null,
+          cdn: detectCDN(src),
+          isOptimizationEffective: null,
+          warningMessage: `获取图片大小对比失败: ${error.message}`,
+        };
+        
+        // 存储优化信息到 ref，供 onClick 使用
+        optimizationInfoRef.current = optimizationInfo;
+        
+        if (onOptimization) {
+          onOptimization(optimizationInfo);
+        }
       }
     }
     
+    // 调用 onLoad 回调，传递优化信息作为第二个参数
     if (onLoad) {
-      onLoad(event);
+      onLoad(event, optimizationInfo);
     }
   };
 
@@ -256,7 +339,29 @@ export default function LazyImage({
   // 处理图片点击
   const handleClick = (event) => {
     if (onClick) {
-      onClick(event);
+      // 构建图片信息对象
+      const imageInfo = {
+        // 基本图片信息
+        src: src,                              // 原始图片URL
+        currentSrc: event.target?.src || optimizedSrc, // 当前加载的图片URL
+        optimizedSrc: optimizedSrc,           // 优化后的URL
+        alt: alt,                              // 图片alt文本
+        dataId: dataId,                        // data-id属性
+        
+        // 图片状态
+        isLoaded: isLoaded,                    // 是否已加载
+        isLoading: isLoading,                   // 是否正在加载
+        hasError: hasError,                    // 是否有错误
+        isCompressing: isCompressing,          // 是否正在压缩
+        
+        // 优化信息（如果已获取）
+        optimizationInfo: optimizationInfoRef.current,
+        
+        // 图片元素引用
+        imageElement: event.target,            // 图片DOM元素
+      };
+      
+      onClick(event, imageInfo);
     }
   };
 
@@ -311,6 +416,7 @@ export default function LazyImage({
     setLockedSrc('');
     setCompressedSrc(null); // 重置压缩图片
     setIsCompressing(false);
+    optimizationInfoRef.current = null; // 重置优化信息
     
     if (immediate) {
       setShouldLoad(true);

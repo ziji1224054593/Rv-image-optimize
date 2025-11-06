@@ -32,6 +32,7 @@ export default defineConfig(({ command, mode }) => {
             react: 'React',
             'react-dom': 'ReactDOM',
           },
+          assetFileNames: 'style.css',
         },
       },
       cssCodeSplit: false,

@@ -28,7 +28,7 @@ function App() {
       <div style={{ marginBottom: '20px' }}>
         <h2>懒加载示例（40张图片）</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
-          {Array.from({ length: 40 }).map((_, i) => (
+          {Array.from({ length: 2 }).map((_, i) => (
             <LazyImage 
               key={i}
               src="https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg"
@@ -37,8 +37,36 @@ function App() {
               height={200}
               rootMargin="50px"
               optimize={{
-                width: 200,
-                quality: 80
+                width: 1376,
+                quality: 90
+              }}
+              onOptimization={(info) => {
+                console.log(`图片 ${i + 1} 优化信息:`, info);
+                console.log(`原始大小: ${info.originalSizeFormatted}`);
+                console.log(`优化后大小: ${info.optimizedSizeFormatted}`);
+                console.log(`节省比例: ${info.savedPercentage}%`);
+              }}
+              onLoad={(event, optimizationInfo) => {
+                console.log(`图片 ${i + 1} 加载完成`);
+                if (optimizationInfo) {
+                  console.log('可通过 onLoad 获取优化信息:', optimizationInfo);
+                }
+              }}
+              onClick={(event, imageInfo) => {
+                console.log(`图片 ${i + 1} 被点击`);
+                console.log('图片信息:', {
+                  src: imageInfo.src,
+                  currentSrc: imageInfo.currentSrc,
+                  isLoaded: imageInfo.isLoaded,
+                  hasError: imageInfo.hasError,
+                });
+                if (imageInfo.optimizationInfo) {
+                  console.log('优化信息:', {
+                    savedPercentage: imageInfo.optimizationInfo.savedPercentage + '%',
+                    originalSize: imageInfo.optimizationInfo.originalSizeFormatted,
+                    optimizedSize: imageInfo.optimizationInfo.optimizedSizeFormatted,
+                  });
+                }
               }}
             />
           ))}
