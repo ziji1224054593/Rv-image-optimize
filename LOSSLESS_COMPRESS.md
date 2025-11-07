@@ -7,9 +7,12 @@
 ## 特性
 
 - ✅ **真正的无损压缩**：保持图片质量不变
-- ✅ **支持多种格式**：PNG、WebP 等支持无损压缩的格式
+- ✅ **支持多种格式**：PNG、WebP 等支持无损压缩的格式，JPEG 自动转换为 PNG/WebP
+- ✅ **GPU 加速**：自动检测并使用 GPU 加速（如果支持），提升处理性能
+- ✅ **Element UI 格式**：返回的文件信息兼容 Element UI Upload 组件
+- ✅ **回调函数支持**：压缩完成后自动调用回调函数，便于上传到后端
+- ✅ **一步到位**：无需额外检查，直接使用即可
 - ✅ **批量处理**：支持批量压缩多张图片
-- ✅ **智能检测**：自动检测图片是否适合无损压缩
 - ✅ **详细统计**：提供压缩前后的详细对比信息
 - ✅ **继承现有功能**：使用 `imageOptimize.js` 中的工具函数
 
@@ -35,12 +38,12 @@ import {
 import losslessCompressModule from 'rv-image-optimize/lossless';
 ```
 
-### 1. 基本无损压缩
+### 1. 基本无损压缩（一步到位）
 
 ```javascript
 import { losslessCompress } from 'rv-image-optimize/lossless';
 
-// 压缩图片URL
+// 直接使用，无需额外检查，一步到位
 const result = await losslessCompress('https://example.com/image.png', {
   maxWidth: 1920,        // 可选：最大宽度
   maxHeight: 1080,       // 可选：最大高度
@@ -53,39 +56,73 @@ console.log('原始大小:', result.originalSizeFormatted);
 console.log('压缩后大小:', result.compressedSizeFormatted);
 console.log('节省:', result.savedSizeFormatted, `(${result.savedPercentage}%)`);
 
+// GPU 加速信息
+if (result.gpuAccelerated) {
+  console.log('✅ 使用了 GPU 加速:', result.gpuMethod);
+}
+
+// 使用 Element UI 格式的文件信息
+const fileInfo = result.fileInfo;
+console.log('文件信息:', fileInfo);
+
 // 使用压缩后的图片
 const img = document.createElement('img');
 img.src = result.dataURL;
 document.body.appendChild(img);
+
+// 或者直接上传到后端
+const formData = new FormData();
+formData.append('image', result.file);
+await fetch('/api/upload', { method: 'POST', body: formData });
 ```
 
-### 2. 压缩文件上传的图片
+### 2. 压缩文件上传的图片（使用回调函数自动上传）
 
 ```javascript
-import { losslessCompress, checkLosslessCompressionSuitability } from 'rv-image-optimize/lossless';
+import { losslessCompress } from 'rv-image-optimize/lossless';
 
 const fileInput = document.querySelector('input[type="file"]');
 fileInput.onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   
-  // 先检查是否适合无损压缩
-  const suitability = await checkLosslessCompressionSuitability(file);
-  console.log(suitability.recommendation);
+  // 一步到位，直接压缩，无需额外检查
+  const result = await losslessCompress(file, {
+    maxWidth: 1920,
+    format: 'webp',
+    // 回调函数：压缩完成后自动调用
+    onComplete: async (compressedFile, compressionResult, fileInfo) => {
+      // fileInfo 已经是 Element UI 格式，直接使用
+      fileInfo.status = 'uploading';
+      
+      // 上传到后端
+      const formData = new FormData();
+      formData.append('image', compressedFile);
+      
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        fileInfo.status = 'success';
+        fileInfo.response = data;
+        fileInfo.url = data.url;
+        console.log('上传成功！', fileInfo);
+      } else {
+        fileInfo.status = 'fail';
+        fileInfo.error = '上传失败';
+      }
+    },
+  });
   
-  if (suitability.isSuitable) {
-    // 执行无损压缩
-    const result = await losslessCompress(file, {
-      maxWidth: 1920,
-      format: 'webp',
-    });
-    
-    // 显示结果
-    console.log('压缩成功！', result);
-    
-    // 下载压缩后的图片
-    downloadCompressedImage(result.blob, `compressed-${file.name}`);
-  }
+  // 显示结果
+  console.log('压缩成功！', result);
+  console.log('Element UI 格式文件信息:', result.fileInfo);
+  
+  // 下载压缩后的图片
+  downloadCompressedImage(result.blob, `compressed-${file.name}`);
 };
 ```
 
@@ -166,13 +203,31 @@ console.log('建议:', suitability.recommendation);
   - `removeMetadata` (boolean, 可选): 是否移除元数据（默认 true）
   - `optimizePalette` (boolean, 可选): 是否优化调色板（仅 PNG，默认 true）
   - `compressionLevel` (number, 可选): PNG 压缩级别（0-9，默认 6）
+  - `onComplete` (Function, 可选): 压缩完成回调函数，接收三个参数：
+    - `compressedFile` (File): 压缩后的 File 对象
+    - `compressionResult` (Object): 完整的压缩结果对象
+    - `fileInfo` (Object): Element UI Upload 组件格式的文件信息对象
+  - `fileName` (string, 可选): 压缩后文件的名称（默认自动生成）
 
 **返回：**
 - `Promise<Object>`: 包含压缩结果和统计信息的对象
 
 **返回对象属性：**
+- `fileInfo` (Object): **Element UI Upload 组件格式的文件信息（主要使用字段）**
+  - `name` (string): 文件名
+  - `size` (number): 文件大小（字节）
+  - `sizeFormatted` (string): 格式化后的文件大小
+  - `type` (string): MIME 类型
+  - `uid` (number): 唯一标识
+  - `status` (string): 状态（ready/uploading/success/fail）
+  - `raw` (File): 原始 File 对象
+  - `compressionInfo` (Object): 压缩相关信息
+- `file` (File): 压缩后的 File 对象，可直接用于 FormData 上传
 - `dataURL` (string): 压缩后的图片 DataURL
 - `blob` (Blob): 压缩后的图片 Blob
+- `gpuAccelerated` (boolean): 是否使用了 GPU 加速
+- `gpuMethod` (string): GPU 加速方法（webgl2/webgl/offscreenCanvas）
+- `gpuInfo` (Object): GPU 支持信息
 - `originalWidth` (number): 原始宽度
 - `originalHeight` (number): 原始高度
 - `originalFormat` (string): 原始格式
@@ -183,6 +238,7 @@ console.log('建议:', suitability.recommendation);
 - `compressedFormat` (string): 压缩后格式
 - `compressedSize` (number): 压缩后大小（字节）
 - `compressedSizeFormatted` (string): 格式化后的压缩后大小
+- `compressedFileName` (string): 压缩后的文件名
 - `savedSize` (number): 节省的大小（字节）
 - `savedSizeFormatted` (string): 格式化后的节省大小
 - `savedPercentage` (number): 节省的百分比
@@ -219,7 +275,7 @@ console.log('建议:', suitability.recommendation);
 
 ### `checkLosslessCompressionSuitability(imageSource)`
 
-检查图片是否适合无损压缩。
+检查图片是否适合无损压缩（可选，现在可以直接使用 `losslessCompress`，无需先检查）。
 
 **参数：**
 - `imageSource` (string|File|Blob): 图片源
@@ -231,6 +287,17 @@ console.log('建议:', suitability.recommendation);
   - `sizeFormatted` (string): 格式化后的大小
   - `isSuitable` (boolean): 是否适合无损压缩
   - `recommendation` (string): 建议信息
+
+### `getGPUSupportInfo()`
+
+获取 GPU 加速支持信息。
+
+**返回：**
+- `Object`: GPU 支持信息
+  - `supported` (boolean): 是否支持 GPU 加速
+  - `method` (string): GPU 方法（webgl2/webgl/offscreenCanvas）
+  - `details` (Object): 详细信息
+  - `reason` (string): 支持或不支持的原因
 
 ### `downloadCompressedImage(compressedImage, filename)`
 
@@ -259,9 +326,16 @@ function ImageCompressor() {
     
     setCompressing(true);
     try {
+      // 一步到位，直接压缩
       const compressed = await losslessCompress(file, {
         maxWidth: 1920,
         format: 'webp',
+        // 可选：使用回调函数自动上传
+        onComplete: async (compressedFile, compressionResult, fileInfo) => {
+          const formData = new FormData();
+          formData.append('image', compressedFile);
+          await fetch('/api/upload', { method: 'POST', body: formData });
+        },
       });
       setResult(compressed);
     } catch (error) {
@@ -280,6 +354,12 @@ function ImageCompressor() {
           <p>原始大小: {result.originalSizeFormatted}</p>
           <p>压缩后大小: {result.compressedSizeFormatted}</p>
           <p>节省: {result.savedSizeFormatted} ({result.savedPercentage}%)</p>
+          {result.gpuAccelerated && (
+            <p>✅ GPU加速: {result.gpuMethod}</p>
+          )}
+          {/* 使用 Element UI 格式的文件信息 */}
+          <p>文件名: {result.fileInfo.name}</p>
+          <p>文件大小: {result.fileInfo.sizeFormatted}</p>
           <img src={result.dataURL} alt="压缩后的图片" />
         </div>
       )}
@@ -299,6 +379,10 @@ function ImageCompressor() {
       <p>原始大小: {{ result.originalSizeFormatted }}</p>
       <p>压缩后大小: {{ result.compressedSizeFormatted }}</p>
       <p>节省: {{ result.savedSizeFormatted }} ({{ result.savedPercentage }}%)</p>
+      <p v-if="result.gpuAccelerated">✅ GPU加速: {{ result.gpuMethod }}</p>
+      <!-- 使用 Element UI 格式的文件信息 -->
+      <p>文件名: {{ result.fileInfo.name }}</p>
+      <p>文件大小: {{ result.fileInfo.sizeFormatted }}</p>
       <img :src="result.dataURL" alt="压缩后的图片" />
     </div>
   </div>
@@ -317,9 +401,16 @@ const handleFileUpload = async (e) => {
   
   compressing.value = true;
   try {
+    // 一步到位，直接压缩
     const compressed = await losslessCompress(file, {
       maxWidth: 1920,
       format: 'webp',
+      // 可选：使用回调函数自动上传
+      onComplete: async (compressedFile, compressionResult, fileInfo) => {
+        const formData = new FormData();
+        formData.append('image', compressedFile);
+        await fetch('/api/upload', { method: 'POST', body: formData });
+      },
     });
     result.value = compressed;
   } catch (error) {
@@ -331,13 +422,61 @@ const handleFileUpload = async (e) => {
 </script>
 ```
 
+## 为什么 JPEG 格式不支持真正的无损压缩？
+
+### JPEG 压缩算法的工作原理
+
+JPEG（Joint Photographic Experts Group）是一种**有损压缩**格式，它的压缩算法基于以下步骤：
+
+1. **颜色空间转换**：将 RGB 转换为 YCbCr（亮度+色度）
+2. **离散余弦变换（DCT）**：将图像分成 8×8 的块，进行数学变换
+3. **量化（Quantization）**：这是**关键的有损步骤**，通过量化表减少数据量
+4. **熵编码**：使用霍夫曼编码进一步压缩
+
+### 为什么 JPEG 不能无损压缩？
+
+**核心原因：量化步骤会丢失信息**
+
+```
+原始像素值 → DCT变换 → 量化（丢失信息）→ 编码 → JPEG文件
+                              ↑
+                        这里会丢失精度
+```
+
+- **量化是不可逆的**：量化表会将高频细节信息舍入到最近的整数值，这些信息一旦丢失就无法恢复
+- **即使质量设置为 100%**：JPEG 仍然使用量化，只是量化表更精细，但仍然会丢失信息
+- **多次保存会累积损失**：每次保存 JPEG 都会重新量化，质量会逐渐下降
+
+### JPEG vs PNG/WebP 无损模式
+
+| 特性 | JPEG | PNG/WebP 无损 |
+|------|------|---------------|
+| 压缩方式 | 有损（量化） | 无损（预测+编码） |
+| 质量损失 | 必然有损失 | 无损失 |
+| 适合场景 | 照片、自然图像 | 图标、文字、需要精确的图片 |
+| 文件大小 | 通常较小 | 通常较大 |
+| 多次保存 | 质量下降 | 质量不变 |
+
+### 解决方案
+
+虽然 JPEG 本身不支持无损压缩，但 `losslessCompress` 会自动处理：
+
+1. **自动格式转换**：如果原图是 JPEG，会自动转换为 PNG 或 WebP 无损格式
+2. **避免进一步损失**：转换后不会再进一步损失质量
+3. **注意**：转换后文件可能会变大，因为：
+   - PNG/WebP 需要存储完整的像素信息（无损）
+   - JPEG 已经丢失了一些信息，转换无法恢复这些信息
+   - PNG/WebP 的压缩算法不如 JPEG 的有损压缩高效
+
 ## 注意事项
 
 1. **浏览器环境**：无损压缩功能仅在浏览器环境中可用，不支持 Node.js 环境
-2. **格式支持**：最适合无损压缩的格式是 PNG 和 WebP，JPEG 格式不支持真正的无损压缩
+2. **格式支持**：最适合无损压缩的格式是 PNG 和 WebP，JPEG 格式会自动转换为 PNG/WebP
 3. **CORS 限制**：如果压缩远程图片 URL，需要确保图片服务器支持 CORS
 4. **性能考虑**：压缩大图片可能需要一些时间，建议使用 `maxWidth`/`maxHeight` 限制尺寸
 5. **质量保证**：无损压缩保持图片质量不变，但压缩率可能不如有损压缩
+6. **GPU 加速**：函数会自动检测并使用 GPU 加速（如果支持），提升处理性能
+7. **在线图片建议**：对于在线图片，优先使用 CDN 压缩参数（如果支持），而不是本地压缩
 
 ## 与 imageOptimize.js 的关系
 
