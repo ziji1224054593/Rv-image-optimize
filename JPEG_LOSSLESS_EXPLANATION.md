@@ -64,20 +64,31 @@ WebP 支持有损和无损两种模式：
 
 ## 代码实现
 
-在我们的 `losslessCompress.js` 中：
+在我们的 `losslessCompress.js` 中，已经自动处理了 JPEG 格式的转换：
 
 ```javascript
 // 如果原图是 JPEG，会自动转换为 PNG 或 WebP 进行无损压缩
-if (originalFormat === 'jpg' || originalFormat === 'jpeg') {
-  // 自动选择最佳无损格式（WebP > PNG）
-  const supportedFormats = detectSupportedFormats();
-  if (supportedFormats.includes('webp')) {
-    outputFormat = 'webp';  // 转换为 WebP 无损模式
-  } else {
-    outputFormat = 'png';   // 转换为 PNG
-  }
-}
+// 无需手动判断，函数会自动处理
+const result = await losslessCompress(imageSource, {
+  maxWidth: 1920,
+  format: 'webp', // 可选：指定输出格式，不指定则自动选择最佳格式
+});
+
+// 返回结果包含：
+// - result.fileInfo: Element UI Upload 组件格式的文件信息
+// - result.file: 压缩后的 File 对象，可直接用于 FormData 上传
+// - result.dataURL: 压缩后的图片 DataURL
+// - result.gpuAccelerated: 是否使用了 GPU 加速
+// - result.gpuMethod: GPU 加速方法（webgl2/webgl/offscreenCanvas）
 ```
+
+### 主要特性
+
+1. **自动格式转换**：JPEG 会自动转换为 PNG 或 WebP 无损格式
+2. **GPU 加速**：自动检测并使用 GPU 加速（如果支持）
+3. **Element UI 格式**：返回的文件信息兼容 Element UI Upload 组件
+4. **回调函数支持**：压缩完成后自动调用回调函数
+5. **一步到位**：无需额外检查，直接使用即可
 
 ## 实际效果
 
@@ -107,6 +118,89 @@ PNG/WebP (1.5MB, 无损，但无法恢复已损失的质量)
 - ✅ 质量完全不变
 - ✅ 可以多次压缩
 
+## 使用示例
+
+### 基本使用（一步到位）
+
+```javascript
+import { losslessCompress } from './losslessCompress.js';
+
+// 直接使用，无需额外检查
+const result = await losslessCompress(file, {
+  maxWidth: 1920,
+  format: 'webp',
+});
+
+// 使用 Element UI 格式的文件信息
+const fileInfo = result.fileInfo;
+console.log('文件信息:', fileInfo);
+// {
+//   name: "image-compressed.webp",
+//   size: 245678,
+//   sizeFormatted: "240 KB",
+//   type: "image/webp",
+//   uid: 1234567890.123,
+//   status: "ready",
+//   raw: File { ... },
+//   compressionInfo: { ... }
+// }
+
+// 直接上传到后端
+const formData = new FormData();
+formData.append('image', result.file);
+await fetch('/api/upload', { method: 'POST', body: formData });
+```
+
+### 使用回调函数自动上传
+
+```javascript
+const result = await losslessCompress(file, {
+  maxWidth: 1920,
+  format: 'webp',
+  // 回调函数：压缩完成后自动调用
+  onComplete: async (compressedFile, compressionResult, fileInfo) => {
+    // fileInfo 已经是 Element UI 格式，直接使用
+    fileInfo.status = 'uploading';
+    
+    // 上传到后端
+    const formData = new FormData();
+    formData.append('image', compressedFile);
+    
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      fileInfo.status = 'success';
+      fileInfo.response = data;
+      fileInfo.url = data.url;
+    } else {
+      fileInfo.status = 'fail';
+      fileInfo.error = '上传失败';
+    }
+  },
+});
+```
+
+### GPU 加速信息
+
+```javascript
+const result = await losslessCompress(file, {
+  maxWidth: 1920,
+  format: 'webp',
+});
+
+// 查看 GPU 加速信息
+if (result.gpuAccelerated) {
+  console.log('✅ 使用了 GPU 加速:', result.gpuMethod);
+  console.log('GPU 信息:', result.gpuInfo);
+} else {
+  console.log('ℹ️ 使用 CPU 处理');
+}
+```
+
 ## 总结
 
 1. **JPEG 本身不支持无损压缩**：因为它的压缩算法就是有损的
@@ -116,6 +210,14 @@ PNG/WebP (1.5MB, 无损，但无法恢复已损失的质量)
    - 需要无损：使用 PNG 或 WebP 无损模式
    - 需要小文件：使用 JPEG 或 WebP 有损模式
    - 已有 JPEG：转换可以防止进一步损失，但文件可能变大
+5. **性能优化**：
+   - 函数会自动检测并使用 GPU 加速（如果支持）
+   - 支持批量处理，可控制并发数量
+   - 返回 Element UI 格式的文件信息，便于集成
+6. **使用建议**：
+   - 对于在线图片：优先使用 CDN 压缩参数（如果支持），而不是本地压缩
+   - 对于本地文件：使用 `losslessCompress` 进行无损压缩
+   - 使用回调函数可以简化上传流程
 
 ## 参考资料
 
