@@ -12,9 +12,7 @@ v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格�
 
 ### 下一步计划
 
-1，支持本地+在线的无损压缩，优化后返回图片文件
-2，缩略图
-3，图片渐进加载
+支持本地+在线的无损压缩，优化后返回图片文件 相当于在上传图片之前做一次压缩
 
 ### 安装
 
@@ -677,7 +675,6 @@ A: 目前无法关闭，但可以通过浏览器控制台过滤日志。
 5. 测试不同 CDN 的图片URL
 6. 测试浏览器端压缩功能
 7. 验证懒加载在不同设备上的表现
-
 
 详细的自定义指南请参考 [STYLE_CUSTOMIZATION.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/STYLE_CUSTOMIZATION.md)
 
