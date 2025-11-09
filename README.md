@@ -9,15 +9,19 @@ v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格�
 - 📱 **响应式图片**：支持 srcset 和 sizes 属性
 - ⚡ **懒加载**：基于 Intersection Observer 的图片懒加载
 - 🔧 **灵活配置**：支持自定义优化参数和错误处理
+- ✅ **真正的无损压缩**：保持图片质量不变
+- ✅ **支持多种格式**：PNG、WebP 等支持无损压缩的格式，JPEG 自动转换为 PNG/WebP
+- ✅ **GPU 加速**：自动检测并使用 GPU 加速（如果支持），提升处理性能
+- ✅ **Element UI 格式**：返回的文件信息兼容 Element UI Upload 组件
+- ✅ **回调函数支持**：压缩完成后自动调用回调函数，便于上传到后端
+- ✅ **一步到位**：无需额外检查，直接使用即可
+- ✅ **批量处理**：支持批量压缩多张图片
+- ✅ **详细统计**：提供压缩前后的详细对比信息
 
-### 下一步计划
 
-1，支持本地+在线的无损压缩，优化后返回图片文件
-2，缩略图
-3，图片渐进加载
-
-### 压缩上传 请移步至 
- 请移步至 LOSSLESS_COMPRESS.md 文档
+详细的渐进式加载指南请参考 [ProgressiveImage.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/LOSSLESS_COMPRESS.md)
+详细的无损压缩上传指南请参考 [LOSSLESS_COMPRESS.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/LOSSLESS_COMPRESS.md)
+详细的自定义指南请参考 [STYLE_CUSTOMIZATION.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/STYLE_CUSTOMIZATION.md)
 
 
 ### 安装
@@ -577,7 +581,6 @@ function ResponsiveImage({ src }) {
 }
 ```
 
-详细样式自定义请参考 [STYLE_CUSTOMIZATION.md](./STYLE_CUSTOMIZATION.md)
 
 ### 最佳实践
 
@@ -683,7 +686,6 @@ A: 目前无法关闭，但可以通过浏览器控制台过滤日志。
 7. 验证懒加载在不同设备上的表现
 
 
-详细的自定义指南请参考 [STYLE_CUSTOMIZATION.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/STYLE_CUSTOMIZATION.md)
 
 ## License
 

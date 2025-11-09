@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { LazyImage } from '../src/index.js';
+import { LazyImage, ProgressiveImage } from '../src/index.js';
 import { 
   losslessCompress, 
   downloadCompressedImage 
 } from '../losslessCompress.js';
-import { optimizeImageUrl, formatFileSize } from '../imageOptimize.js';
+import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../imageOptimize.js';
 import '../src/LazyImage.css';
 
 // 无损压缩对比组件
@@ -1143,6 +1143,474 @@ function OnlineImageStressTest() {
   );
 }
 
+// 模糊到清晰的渐进式加载演示组件
+function BlurToClearDemo() {
+  const imageUrl = "https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg";
+  const [stageInfo1, setStageInfo1] = useState('');
+  const [stageInfo2, setStageInfo2] = useState('');
+  const [stageInfo3, setStageInfo3] = useState('');
+
+  return (
+    <div style={{ 
+      marginTop: '40px',
+      padding: '20px', 
+      border: '1px solid #ddd', 
+      borderRadius: '8px',
+      backgroundColor: '#f9f9f9'
+    }}>
+      <h3>模糊到清晰的渐进式加载示例（Instagram风格）</h3>
+      <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
+        🎨 新功能：图片从模糊逐渐变清晰，适合网络较差的场景。
+        先加载极小的模糊占位图，然后逐步加载更清晰的版本，最后加载原图。
+      </p>
+
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gap: '20px',
+        marginTop: '20px'
+      }}>
+        {/* 示例1: 默认3阶段 */}
+        <div style={{
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          padding: '15px',
+          backgroundColor: 'white'
+        }}>
+          <h4 style={{ marginTop: 0, marginBottom: '15px' }}>示例1: 默认3阶段</h4>
+          <ProgressiveImage
+            src={imageUrl}
+            alt="渐进式加载示例1"
+            width="100%"
+            height={300}
+            stages={[
+              { width: 20, quality: 20 },   // 阶段1: 极速模糊图
+              { width: 400, quality: 50 },   // 阶段2: 中等质量
+              { width: null, quality: 80 }   // 阶段3: 最终质量（原图）
+            ]}
+            transitionDuration={300}
+            timeout={30000}
+            onStageComplete={(stageIndex, stageUrl, stage) => {
+              setStageInfo1(`阶段 ${stageIndex + 1} 完成: ${stage.width ? `${stage.width}px` : '原图'}`);
+            }}
+            onComplete={(finalUrl) => {
+              setStageInfo1('全部加载完成！');
+            }}
+          />
+          <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+            {stageInfo1 || '等待加载...'}
+          </div>
+        </div>
+
+        {/* 示例2: 自定义2阶段（快速） */}
+        <div style={{
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          padding: '15px',
+          backgroundColor: 'white'
+        }}>
+          <h4 style={{ marginTop: 0, marginBottom: '15px' }}>示例2: 快速2阶段（自定义超时）</h4>
+          <ProgressiveImage
+            src={imageUrl}
+            alt="渐进式加载示例2"
+            width="100%"
+            height={300}
+            stages={[
+              { width: 50, quality: 30 },    // 阶段1: 快速模糊图
+              { width: null, quality: 85 }    // 阶段2: 最终质量
+            ]}
+            transitionDuration={200}
+            timeout={60000}
+            onStageComplete={(stageIndex, stageUrl, stage) => {
+              setStageInfo2(`阶段 ${stageIndex + 1} 完成`);
+            }}
+            onComplete={(finalUrl) => {
+              setStageInfo2('加载完成！');
+            }}
+          />
+          <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+            {stageInfo2 || '等待加载...'}
+          </div>
+        </div>
+
+        {/* 示例3: 4阶段精细加载 */}
+        <div style={{
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          padding: '15px',
+          backgroundColor: 'white'
+        }}>
+          <h4 style={{ marginTop: 0, marginBottom: '15px' }}>示例3: 4阶段精细加载</h4>
+          <ProgressiveImage
+            src={imageUrl}
+            alt="渐进式加载示例3"
+            width="100%"
+            height={300}
+            stages={[
+              { width: 20, quality: 20 },     // 阶段1: 极速模糊
+              { width: 200, quality: 40 },    // 阶段2: 小图
+              { width: 600, quality: 60 },    // 阶段3: 中图
+              { width: null, quality: 85 }    // 阶段4: 原图
+            ]}
+            transitionDuration={400}
+            onStageComplete={(stageIndex, stageUrl, stage) => {
+              setStageInfo3(`阶段 ${stageIndex + 1}/4 完成`);
+            }}
+            onComplete={(finalUrl) => {
+              setStageInfo3('全部完成！');
+            }}
+          />
+          <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+            {stageInfo3 || '等待加载...'}
+          </div>
+        </div>
+      </div>
+
+      {/* 使用说明 */}
+      <div style={{ 
+        marginTop: '20px',
+        padding: '15px',
+        backgroundColor: '#e3f2fd',
+        borderRadius: '4px',
+        fontSize: '14px'
+      }}>
+        <h4 style={{ marginTop: 0 }}>使用说明</h4>
+        <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
+          <li>第一阶段：加载极小的模糊图（20px宽，质量20%），快速显示占位</li>
+          <li>第二阶段：加载中等质量图片（400px宽，质量50%），提升清晰度</li>
+          <li>第三阶段：加载最终高质量图片（原图，质量80%），完全清晰</li>
+          <li>每个阶段之间有平滑的过渡动画（300ms）</li>
+          <li>适合网络较差的场景，用户可以立即看到模糊预览</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// 渐进式加载演示组件
+function ProgressiveLoadDemo() {
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stats, setStats] = useState(null);
+
+  // 生成100张图片URL（使用相同的图片URL作为示例）
+  const generateImageUrls = () => {
+    const baseUrl = "https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg";
+    return Array.from({ length: 100 }, (_, i) => ({
+      url: baseUrl,
+      priority: i < 20 ? 10 : (i < 50 ? 5 : 0), // 前20张优先级最高
+      index: i,
+    }));
+  };
+
+  const handleStartLoading = async () => {
+    setLoading(true);
+    setImages([]);
+    setProgress(0);
+    setStats(null);
+
+    const imageList = generateImageUrls();
+    let successCount = 0;
+    let failCount = 0;
+
+    const results = await loadImagesProgressively(imageList, {
+      concurrency: 100, // 高并发
+      timeout: 30000,
+      priority: true, // 启用优先级
+      // 渐进式加载阶段：从模糊到清晰
+      stages: [
+        { width: 20, quality: 20 },   // 阶段1: 极速模糊图
+        { width: 400, quality: 50 },   // 阶段2: 中等质量
+        { width: null, quality: 80 }    // 阶段3: 最终质量（原图）
+      ],
+      onProgress: (current, total, result) => {
+        const percentage = ((current / total) * 100).toFixed(1);
+        setProgress(parseFloat(percentage));
+      },
+      // 阶段完成回调：每完成一个阶段就更新图片
+      onItemStageComplete: (stageResult, stageIndex) => {
+        const { index, stageUrl, currentStage, totalStages } = stageResult;
+        // 更新图片URL，显示当前阶段的图片
+        setImages(prev => {
+          const newImages = [...prev];
+          if (!newImages[index]) {
+            newImages[index] = {
+              url: stageUrl,
+              index,
+              loaded: false,
+              error: null,
+              currentStage,
+              totalStages,
+              isComplete: false,
+            };
+          } else {
+            newImages[index] = {
+              ...newImages[index],
+              url: stageUrl,
+              currentStage,
+              isComplete: currentStage === totalStages,
+            };
+          }
+          return newImages;
+        });
+      },
+      onItemComplete: (result) => {
+        if (result.success) {
+          successCount++;
+          // 最终完成，标记为已加载
+          setImages(prev => {
+            const newImages = [...prev];
+            newImages[result.index] = {
+              url: result.url,
+              index: result.index,
+              loaded: true,
+              error: null,
+              isComplete: true,
+            };
+            return newImages;
+          });
+        } else {
+          failCount++;
+          // 显示错误占位符
+          setImages(prev => {
+            const newImages = [...prev];
+            newImages[result.index] = {
+              url: result.url,
+              index: result.index,
+              loaded: false,
+              error: result.error,
+              isComplete: false,
+            };
+            return newImages;
+          });
+        }
+      },
+    });
+
+    // 更新统计信息
+    setStats({
+      total: results.length,
+      success: successCount,
+      failed: failCount,
+      successRate: ((successCount / results.length) * 100).toFixed(1),
+    });
+
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ 
+      marginTop: '40px',
+      padding: '20px', 
+      border: '1px solid #ddd', 
+      borderRadius: '8px',
+      backgroundColor: '#f9f9f9'
+    }}>
+      <h3>渐进式加载示例（100张图片，模糊到清晰）</h3>
+      <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
+        🎨 新功能：每张图片从模糊逐渐变清晰（3阶段加载）。
+        先加载极小的模糊图（20px），然后中等质量（400px），最后加载原图。
+        支持高并发（默认10）、错误隔离、独立错误信息。
+      </p>
+
+      <div style={{ marginBottom: '20px' }}>
+        <button
+          onClick={handleStartLoading}
+          disabled={loading}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: loading ? '#d9d9d9' : '#1890ff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+        >
+          {loading ? '加载中...' : '开始加载100张图片'}
+        </button>
+      </div>
+
+      {/* 进度条 */}
+      {loading && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            marginBottom: '10px',
+            fontSize: '14px'
+          }}>
+            <span>加载进度: {progress.toFixed(1)}%</span>
+            <span>{images.filter(img => img && img.loaded).length} / 100 已加载</span>
+          </div>
+          <div style={{ 
+            width: '100%', 
+            height: '24px', 
+            backgroundColor: '#e0e0e0', 
+            borderRadius: '12px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              width: `${progress}%`,
+              height: '100%',
+              backgroundColor: '#1890ff',
+              transition: 'width 0.3s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}>
+              {Math.round(progress)}%
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 统计信息 */}
+      {stats && !loading && (
+        <div style={{ 
+          padding: '15px', 
+          backgroundColor: '#e8f5e9',
+          borderRadius: '4px',
+          marginBottom: '20px'
+        }}>
+          <h4 style={{ marginTop: 0, marginBottom: '10px' }}>加载统计</h4>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+            gap: '10px',
+            fontSize: '14px'
+          }}>
+            <div>
+              <div style={{ color: '#666', fontSize: '12px' }}>总计</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{stats.total} 张</div>
+            </div>
+            <div>
+              <div style={{ color: '#666', fontSize: '12px' }}>成功</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#52c41a' }}>
+                {stats.success} 张
+              </div>
+            </div>
+            <div>
+              <div style={{ color: '#666', fontSize: '12px' }}>失败</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: stats.failed > 0 ? '#f5222d' : '#52c41a' }}>
+                {stats.failed} 张
+              </div>
+            </div>
+            <div>
+              <div style={{ color: '#666', fontSize: '12px' }}>成功率</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1890ff' }}>
+                {stats.successRate}%
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 图片网格 */}
+      {images.length > 0 && (
+        <div>
+          <h4 style={{ marginBottom: '15px' }}>图片展示 ({images.filter(img => img).length} 张)</h4>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', 
+            gap: '10px',
+            maxHeight: '600px',
+            overflowY: 'auto',
+            padding: '10px',
+            backgroundColor: 'white',
+            borderRadius: '4px'
+          }}>
+            {images.map((img, i) => (
+              img ? (
+                <div key={i} style={{ 
+                  position: 'relative',
+                  aspectRatio: '1',
+                  borderRadius: '4px',
+                  overflow: 'hidden',
+                  border: '1px solid #ddd'
+                }}>
+                  {img.error ? (
+                    <div style={{
+                      width: '100%',
+                      height: '100%',
+                      backgroundColor: '#ffebee',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#f5222d',
+                      fontSize: '12px',
+                      padding: '5px',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: '20px', marginBottom: '5px' }}>❌</div>
+                      <div style={{ fontSize: '10px' }}>加载失败</div>
+                    </div>
+                  ) : (
+                    <img 
+                      src={img.url} 
+                      alt={`图片 ${i + 1}`}
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'cover',
+                        transition: 'filter 0.3s ease-in-out, opacity 0.3s ease-in-out',
+                        // 真正的渐进式加载资源 + CSS模糊效果增强视觉体验
+                        filter: img.currentStage === 1 ? 'blur(10px)' : 
+                                img.currentStage === 2 ? 'blur(3px)' : 
+                                'blur(0px)',
+                        opacity: img.isComplete ? 1 : 0.95,
+                      }} 
+                    />
+                  )}
+                  <div style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '2px',
+                    backgroundColor: img.error ? '#f5222d' : 
+                                    img.isComplete ? '#52c41a' : 
+                                    '#1890ff',
+                    color: 'white',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    fontWeight: 'bold'
+                  }}>
+                    #{i + 1}
+                    {img.currentStage && !img.isComplete && (
+                      <span style={{ marginLeft: '4px', fontSize: '9px' }}>
+                        {img.currentStage}/{img.totalStages}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div key={i} style={{ 
+                  aspectRatio: '1',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#999',
+                  fontSize: '12px'
+                }}>
+                  等待中...
+                </div>
+              )
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 简单的 Tabs 组件
 function Tabs({ children, tabs }) {
   const [activeTab, setActiveTab] = useState(0);
@@ -1190,7 +1658,7 @@ function App() {
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <h1 style={{ marginBottom: '30px' }}>图片优化工具演示</h1>
       
-      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示']}>
+      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}>
         {/* 第一页：LazyImage 组件示例 */}
         <div>
           <h2>LazyImage 组件示例</h2>
@@ -1236,6 +1704,15 @@ function App() {
           <OnlineImageOptimizeDemo />
         </div>
 
+        {/* 第四页 渐进式加载示例 */}
+        <div>
+          <ProgressiveLoadDemo />
+        </div>
+
+        {/* 第五页 模糊到清晰的渐进式加载示例 */}
+        <div>
+          <BlurToClearDemo />
+        </div>
         {/* 第四页：在线图片无损压力测试 */}
         {/* <div>
           <OnlineImageStressTest />
