@@ -1,6 +1,6 @@
 {
   "name": "rv-image-optimize",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs.js",

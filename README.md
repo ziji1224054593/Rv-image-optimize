@@ -27,6 +27,8 @@ v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格�
 - 📊 **进度与回调支持**：实时进度回调（onProgress）、阶段完成通知和整体完成事件，便于集成 UI 更新，如进度条或动态显示。
 
 
+### 插件预览地址 
+#### [插件预览地址]( https://imageoptimize.gitee.io/rv-image-optimize)
 ### 渐进式加载指南请参考
 ####  [ProgressiveImage.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/ProgressiveImage.md)
 ### 无损压缩上传指南请参考
