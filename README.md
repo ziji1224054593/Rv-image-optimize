@@ -19,9 +19,12 @@ v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格�
 - ✅ **详细统计**：提供压缩前后的详细对比信息
 
 
-详细的渐进式加载指南请参考 [ProgressiveImage.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/LOSSLESS_COMPRESS.md)
-详细的无损压缩上传指南请参考 [LOSSLESS_COMPRESS.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/LOSSLESS_COMPRESS.md)
-详细的自定义指南请参考 [STYLE_CUSTOMIZATION.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/STYLE_CUSTOMIZATION.md)
+### 渐进式加载指南请参考
+####  [ProgressiveImage.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/ProgressiveImage.md)
+### 无损压缩上传指南请参考
+####  [LOSSLESS_COMPRESS.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/LOSSLESS_COMPRESS.md)
+### 自定义样式指南请参考
+####  [STYLE_CUSTOMIZATION.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/STYLE_CUSTOMIZATION.md)
 
 
 ### 安装
