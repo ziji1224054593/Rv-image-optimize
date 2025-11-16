@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { LazyImage, ProgressiveImage } from '../src/index.js';
 import { 
   losslessCompress, 
-  downloadCompressedImage 
+  downloadCompressedImage,
+  validateImageFile
 } from '../losslessCompress.js';
 import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../imageOptimize.js';
 import '../src/LazyImage.css';
@@ -16,12 +17,62 @@ function LosslessCompressDemo() {
   const [totalStats, setTotalStats] = useState(null); // 总体统计
   const [uploadStatus, setUploadStatus] = useState({}); // 上传状态 { fileIndex: { uploading: bool, success: bool, error: string } }
   const [enableAutoUpload, setEnableAutoUpload] = useState(false); // 是否启用自动上传
+  
+  // 验证配置（可以通过 props 或 state 传递）
+  const validationConfig = {
+    allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'], // 允许的格式
+    strict: true, // 严格验证（检查扩展名、MIME类型和文件头）
+    maxSize: 10 * 1024 * 1024, // 最大文件大小：10MB
+    minSize: 0, // 最小文件大小：0字节
+    enabled: true, // 启用验证
+  };
 
   const handleFileChange = async (e) => {
     const selectedFiles = Array.from(e.target.files);
     if (selectedFiles.length === 0) return;
 
-    setFiles(selectedFiles);
+    // 验证所有文件
+    const validFiles = [];
+    const invalidFiles = [];
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      try {
+        const validationResult = await validateImageFile(file, validationConfig);
+        if (validationResult.valid) {
+          validFiles.push(file);
+        } else {
+          invalidFiles.push({
+            file,
+            errors: validationResult.errors,
+          });
+          console.warn(`文件 ${file.name} 验证失败:`, validationResult.errors);
+        }
+      } catch (error) {
+        invalidFiles.push({
+          file,
+          errors: [error.message],
+        });
+        console.error(`文件 ${file.name} 验证出错:`, error);
+      }
+    }
+
+    // 如果有无效文件，显示错误提示
+    if (invalidFiles.length > 0) {
+      const errorMessages = invalidFiles.map(item => 
+        `${item.file.name}: ${item.errors.join('; ')}`
+      ).join('\n');
+      // alert(`以下文件验证失败，将被跳过：\n\n${errorMessages}`);
+      // console.log(`以下文件验证失败，将被跳过：\n\n${errorMessages}`)
+    }
+
+    // 如果没有有效文件，直接返回
+    if (validFiles.length === 0) {
+      // alert('没有有效的图片文件可以处理');
+      return;
+    }
+
+    setFiles(validFiles);
     setResults([]);
     setTotalStats(null);
     setUploadStatus({}); // 重置上传状态
@@ -32,17 +83,23 @@ function LosslessCompressDemo() {
     let totalOriginalSize = 0;
     let totalCompressedSize = 0;
 
-    for (let i = 0; i < selectedFiles.length; i++) {
-      const file = selectedFiles[i];
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
       setCompressingIndex(i);
 
       try {
         // 执行无损压缩（一步到位，无需额外检查）
+        // 注意：这里可以再次传递验证配置，但通常在上传前已经验证过了
         const startTime = window.performance.now();
         const result = await losslessCompress(file, {
           maxWidth: 1920,
           format: 'webp',
           compressionLevel: 6,
+          // 传递验证配置（可选，如果已经在 handleFileChange 中验证过，这里可以禁用或使用更宽松的配置）
+          validation: {
+            ...validationConfig,
+            enabled: false, // 如果已经在前面验证过，这里可以禁用
+          },
           // 使用回调函数：压缩完成后自动上传到后端
           onComplete: enableAutoUpload ? async (compressedFile, compressionResult, fileInfo) => {
             // fileInfo 已经是 Element UI 格式，直接使用
@@ -168,7 +225,7 @@ function LosslessCompressDemo() {
       : null;
 
     setTotalStats({
-      totalFiles: selectedFiles.length,
+      totalFiles: validFiles.length,
       totalOriginalSize: totalOriginalSize > 0 ? totalOriginalSize : 0,
       totalCompressedSize: totalCompressedSize > 0 ? totalCompressedSize : 0,
       totalSaved,
@@ -314,8 +371,16 @@ function LosslessCompressDemo() {
         </div>
         <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
           💡 支持批量选择多个图片文件，选择后会自动开始压缩
+          <div style={{ marginTop: '5px', padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+            <strong>文件验证规则：</strong>
+            <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+              <li>支持的格式：{validationConfig.allowedFormats.join(', ').toUpperCase()}</li>
+              <li>最大文件大小：{formatFileSize(validationConfig.maxSize)}</li>
+              <li>验证模式：{validationConfig.strict ? '严格模式（检查扩展名、MIME类型和文件头）' : '宽松模式'}</li>
+            </ul>
+          </div>
           {enableAutoUpload && (
-            <span style={{ color: '#1890ff', marginLeft: '10px' }}>
+            <span style={{ color: '#1890ff', marginLeft: '10px', display: 'block', marginTop: '5px' }}>
               ✓ 已启用自动上传：压缩完成后会自动通过回调函数上传到后端
             </span>
           )}
