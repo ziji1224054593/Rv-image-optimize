@@ -21,7 +21,7 @@ function LosslessCompressDemo() {
   // 验证配置（可以通过 props 或 state 传递）
   const validationConfig = {
     allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'], // 允许的格式
-    strict: true, // 严格验证（检查扩展名、MIME类型和文件头）
+    strict: false, // 严格验证（检查扩展名、MIME类型和文件头）
     maxSize: 10 * 1024 * 1024, // 最大文件大小：10MB
     minSize: 0, // 最小文件大小：0字节
     enabled: true, // 启用验证
@@ -46,7 +46,7 @@ function LosslessCompressDemo() {
             file,
             errors: validationResult.errors,
           });
-          console.warn(`文件 ${file.name} 验证失败:`, validationResult.errors);
+          console.log(`文件 ${file.name} 验证失败:`, validationResult.errors);
         }
       } catch (error) {
         invalidFiles.push({
@@ -63,12 +63,14 @@ function LosslessCompressDemo() {
         `${item.file.name}: ${item.errors.join('; ')}`
       ).join('\n');
       // alert(`以下文件验证失败，将被跳过：\n\n${errorMessages}`);
-      // console.log(`以下文件验证失败，将被跳过：\n\n${errorMessages}`)
+      console.log(`以下文件验证失败，将被跳过：\n\n${errorMessages}`)
     }
 
     // 如果没有有效文件，直接返回
     if (validFiles.length === 0) {
       // alert('没有有效的图片文件可以处理');
+      console.log('没有有效的图片文件可以处理');
+      
       return;
     }
 
