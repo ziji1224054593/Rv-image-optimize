@@ -62,8 +62,8 @@ function LosslessCompressDemo() {
       const errorMessages = invalidFiles.map(item => 
         `${item.file.name}: ${item.errors.join('; ')}`
       ).join('\n');
-      // alert(`以下文件验证失败，将被跳过：\n\n${errorMessages}`);
-      console.log(`以下文件验证失败，将被跳过：\n\n${errorMessages}`)
+      alert(`以下文件验证失败，将被跳过：\n\n${errorMessages}`);
+      // console.log(`以下文件验证失败，将被跳过：\n\n${errorMessages}`)
     }
 
     // 如果没有有效文件，直接返回
