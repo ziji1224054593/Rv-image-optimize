@@ -21,7 +21,7 @@ function LosslessCompressDemo() {
   // 验证配置（可以通过 props 或 state 传递）
   const validationConfig = {
     allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'], // 允许的格式
-    strict: false, // 严格验证（检查扩展名、MIME类型和文件头）
+    strict: true, // 严格验证（检查扩展名、MIME类型和文件头）
     maxSize: 10 * 1024 * 1024, // 最大文件大小：10MB
     minSize: 0, // 最小文件大小：0字节
     enabled: true, // 启用验证
