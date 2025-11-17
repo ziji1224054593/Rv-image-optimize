@@ -18,7 +18,7 @@ stages:
         displayName: Nodejs 构建
         nodeVersion: 20.10.0
         commands:
-          - npm install && rm -rf ./dist && npm run build
+          - npm install && rm -rf ./dist && npm run build:static
         artifacts:
           - name: BUILD_ARTIFACT
             path:
