@@ -22,7 +22,7 @@ function LosslessCompressDemo() {
   const validationConfig = {
     allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'], // 允许的格式
     strict: true, // 严格验证（检查扩展名、MIME类型和文件头）
-    maxSize: 10 * 1024 * 1024, // 最大文件大小：10MB
+    maxSize: 100 * 1024 * 1024, // 最大文件大小：10MB
     minSize: 0, // 最小文件大小：0字节
     enabled: true, // 启用验证
   };
