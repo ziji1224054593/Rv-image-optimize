@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { LazyImage, ProgressiveImage } from '../src/index.js';
-import { 
-  losslessCompress, 
+import {
+  losslessCompress,
   downloadCompressedImage,
   validateImageFile
 } from '../losslessCompress.js';
@@ -17,60 +17,65 @@ function LosslessCompressDemo() {
   const [totalStats, setTotalStats] = useState(null); // 总体统计
   const [uploadStatus, setUploadStatus] = useState({}); // 上传状态 { fileIndex: { uploading: bool, success: bool, error: string } }
   const [enableAutoUpload, setEnableAutoUpload] = useState(false); // 是否启用自动上传
-  
+  const [validationEnabled, setValidationEnabled] = useState(true); // 是否启用文件验证
+  const [validationStrictMode, setValidationStrictMode] = useState(true); // 验证模式：严格或宽松
+
   // 验证配置（可以通过 props 或 state 传递）
-  const validationConfig = {
+  const validationConfig = useMemo(() => ({
     allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'], // 允许的格式
-    strict: true, // 严格验证（检查扩展名、MIME类型和文件头）
+    strict: validationStrictMode, // 严格验证（检查扩展名、MIME类型和文件头）
     maxSize: 100 * 1024 * 1024, // 最大文件大小：100MB
     minSize: 0, // 最小文件大小：0字节
-    enabled: true, // 启用验证
-  };
+    enabled: validationEnabled, // 是否启用验证
+  }), [validationEnabled, validationStrictMode]);
 
   const handleFileChange = async (e) => {
     const selectedFiles = Array.from(e.target.files);
     if (selectedFiles.length === 0) return;
 
-    // 验证所有文件
-    const validFiles = [];
+    // 验证所有文件（可手动开关）
+    let validFiles = [...selectedFiles];
     const invalidFiles = [];
 
-    for (let i = 0; i < selectedFiles.length; i++) {
-      const file = selectedFiles[i];
-      try {
-        const validationResult = await validateImageFile(file, validationConfig);
-        if (validationResult.valid) {
-          validFiles.push(file);
-        } else {
+    if (validationEnabled) {
+      validFiles = [];
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        try {
+          const validationResult = await validateImageFile(file, validationConfig);
+          if (validationResult.valid) {
+            validFiles.push(file);
+          } else {
+            invalidFiles.push({
+              file,
+              errors: validationResult.errors,
+            });
+            console.log(`文件 ${file.name} 验证失败:`, validationResult.errors);
+          }
+        } catch (error) {
           invalidFiles.push({
             file,
-            errors: validationResult.errors,
+            errors: [error.message],
           });
-          console.log(`文件 ${file.name} 验证失败:`, validationResult.errors);
+          console.error(`文件 ${file.name} 验证出错:`, error);
         }
-      } catch (error) {
-        invalidFiles.push({
-          file,
-          errors: [error.message],
-        });
-        console.error(`文件 ${file.name} 验证出错:`, error);
       }
-    }
 
-    // 如果有无效文件，显示错误提示
-    if (invalidFiles.length > 0) {
-      const errorMessages = invalidFiles.map(item => 
-        `${item.file.name}: ${item.errors.join('; ')}`
-      ).join('\n');
-      alert(`以下文件验证失败，将被跳过：\n\n${errorMessages}`);
-      // console.log(`以下文件验证失败，将被跳过：\n\n${errorMessages}`)
+      // 如果有无效文件，显示错误提示
+      if (invalidFiles.length > 0) {
+        const errorMessages = invalidFiles.map(item =>
+          `${item.file.name}: ${item.errors.join('; ')}`
+        ).join('\n');
+        alert(`以下文件验证失败，将被跳过：\n\n${errorMessages}`);
+        // console.log(`以下文件验证失败，将被跳过：\n\n${errorMessages}`)
+      }
     }
 
     // 如果没有有效文件，直接返回
     if (validFiles.length === 0) {
       // alert('没有有效的图片文件可以处理');
       console.log('没有有效的图片文件可以处理');
-      
+
       return;
     }
 
@@ -97,16 +102,13 @@ function LosslessCompressDemo() {
           maxWidth: 1920,
           format: 'webp',
           compressionLevel: 6,
-          // 传递验证配置（可选，如果已经在 handleFileChange 中验证过，这里可以禁用或使用更宽松的配置）
-          validation: {
-            ...validationConfig,
-            enabled: false, // 如果已经在前面验证过，这里可以禁用
-          },
+          // 传递验证配置（可手动开启/关闭，并可切换严格/宽松模式）
+          validation: validationConfig,
           // 使用回调函数：压缩完成后自动上传到后端
           onComplete: enableAutoUpload ? async (compressedFile, compressionResult, fileInfo) => {
             // fileInfo 已经是 Element UI 格式，直接使用
             fileInfo.status = 'uploading'; // 更新状态为上传中
-            
+
             console.log('压缩完成，文件信息（Element UI 格式）:', fileInfo);
             console.log('文件详情:', {
               name: fileInfo.name,
@@ -116,7 +118,7 @@ function LosslessCompressDemo() {
               status: fileInfo.status,
               compressionInfo: fileInfo.compressionInfo,
             });
-            
+
             // 更新上传状态
             setUploadStatus(prev => ({
               ...prev,
@@ -126,30 +128,30 @@ function LosslessCompressDemo() {
             try {
               // 模拟上传到后端（实际使用时替换为真实的后端接口）
               const uploadResult = await simulateUploadToBackend(compressedFile, compressionResult, file.name);
-              
+
               // 更新文件信息状态为成功
               fileInfo.status = 'success';
               fileInfo.response = uploadResult; // Element UI 格式：服务器响应
               fileInfo.url = uploadResult.url;  // Element UI 格式：文件 URL
-              
+
               // 更新上传状态为成功
               setUploadStatus(prev => ({
                 ...prev,
                 [i]: { uploading: false, success: true, error: null, result: uploadResult, fileInfo }
               }));
-              
+
               console.log('上传成功，更新后的文件信息:', fileInfo);
             } catch (uploadError) {
               // 更新文件信息状态为失败
               fileInfo.status = 'fail';
               fileInfo.error = uploadError.message;
-              
+
               // 更新上传状态为失败
               setUploadStatus(prev => ({
                 ...prev,
                 [i]: { uploading: false, success: false, error: uploadError.message, fileInfo }
               }));
-              
+
               console.error('上传失败，文件信息:', fileInfo);
             }
           } : null,
@@ -260,9 +262,9 @@ function LosslessCompressDemo() {
       alert('文件信息不存在');
       return;
     }
-    
+
     fileInfo.status = 'uploading'; // 更新状态为上传中
-    
+
     console.log('手动上传，文件信息（Element UI 格式）:', fileInfo);
     console.log('文件详情:', {
       name: fileInfo.name,
@@ -280,33 +282,33 @@ function LosslessCompressDemo() {
 
     try {
       const uploadResult = await simulateUploadToBackend(
-        result.result.file, 
-        result.result, 
+        result.result.file,
+        result.result,
         result.file.name
       );
-      
+
       // 更新文件信息状态为成功
       fileInfo.status = 'success';
       fileInfo.response = uploadResult; // Element UI 格式：服务器响应
       fileInfo.url = uploadResult.url;  // Element UI 格式：文件 URL
-      
+
       setUploadStatus(prev => ({
         ...prev,
         [fileIndex]: { uploading: false, success: true, error: null, result: uploadResult, fileInfo }
       }));
-      
+
       console.log('上传成功，更新后的文件信息:', fileInfo);
       alert('上传成功！');
     } catch (error) {
       // 更新文件信息状态为失败
       fileInfo.status = 'fail';
       fileInfo.error = error.message;
-      
+
       setUploadStatus(prev => ({
         ...prev,
         [fileIndex]: { uploading: false, success: false, error: error.message, fileInfo }
       }));
-      
+
       console.error('上传失败，文件信息:', fileInfo);
       alert(`上传失败: ${error.message}`);
     }
@@ -344,32 +346,50 @@ function LosslessCompressDemo() {
   };
 
   return (
-    <div style={{ 
-      marginBottom: '40px', 
-      padding: '20px', 
-      border: '1px solid #ddd', 
+    <div style={{
+      marginBottom: '40px',
+      padding: '20px',
+      border: '1px solid #ddd',
       borderRadius: '8px',
       backgroundColor: '#f9f9f9'
     }}>
       <h2>无损压缩功能演示与对比（支持批量处理）</h2>
-      
+
       <div style={{ marginBottom: '20px' }}>
         <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <input 
-            type="file" 
-            accept="image/*" 
+          <input
+            type="file"
+            accept="image/*"
             multiple
             onChange={handleFileChange}
             style={{ marginBottom: '10px' }}
           />
           <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               checked={enableAutoUpload}
               onChange={(e) => setEnableAutoUpload(e.target.checked)}
             />
             <span style={{ fontSize: '14px' }}>启用自动上传（使用回调函数）</span>
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={validationEnabled}
+              onChange={(e) => setValidationEnabled(e.target.checked)}
+            />
+            <span style={{ fontSize: '14px' }}>启用文件验证</span>
+          </label>
+          {validationEnabled && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={validationStrictMode}
+                onChange={(e) => setValidationStrictMode(e.target.checked)}
+              />
+              <span style={{ fontSize: '14px' }}>严格模式（检查扩展名、MIME类型和文件头）</span>
+            </label>
+          )}
         </div>
         <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
           💡 支持批量选择多个图片文件，选择后会自动开始压缩
@@ -378,7 +398,15 @@ function LosslessCompressDemo() {
             <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
               <li>支持的格式：{validationConfig.allowedFormats.join(', ').toUpperCase()}</li>
               <li>最大文件大小：{formatFileSize(validationConfig.maxSize)}</li>
-              <li>验证模式：{validationConfig.strict ? '严格模式（检查扩展名、MIME类型和文件头）' : '宽松模式'}</li>
+              <li>验证模式：{validationEnabled ? (validationConfig.strict ? '严格模式（检查扩展名、MIME类型和文件头）' : '宽松模式') : '已关闭'}</li>
+              <li>
+                <div>1. **自动格式转换**：如果原图是 JPEG/JPG，会自动转换为 PNG 或 WebP 无损格式</div>
+                <div>2. **避免进一步损失**：转换后不会再进一步损失质量</div>
+                <div>3. **注意**：转换后文件可能会变大，因为：</div>
+                <div>- PNG/WebP 需要存储完整的像素信息（无损）</div>
+                <div>- JPEG/JPG 已经丢失了一些信息，转换无法恢复这些信息</div>
+                <div>- PNG/WebP 的压缩算法不如 JPEG 的有损压缩高效</div>
+              </li>
             </ul>
           </div>
           {enableAutoUpload && (
@@ -387,10 +415,10 @@ function LosslessCompressDemo() {
             </span>
           )}
         </div>
-        
+
         {compressing && (
-          <div style={{ 
-            padding: '10px', 
+          <div style={{
+            padding: '10px',
             backgroundColor: '#e3f2fd',
             borderRadius: '4px',
             marginBottom: '10px'
@@ -404,16 +432,16 @@ function LosslessCompressDemo() {
         )}
 
         {totalStats && (
-          <div style={{ 
-            padding: '15px', 
+          <div style={{
+            padding: '15px',
             backgroundColor: '#e8f5e9',
             borderRadius: '4px',
             marginBottom: '10px'
           }}>
             <h3 style={{ marginTop: 0 }}>总体统计</h3>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
               gap: '10px',
               marginTop: '10px'
             }}>
@@ -433,8 +461,8 @@ function LosslessCompressDemo() {
                 <div style={{ fontSize: '12px', color: '#666' }}>
                   {totalStats.totalSavedPercentage !== null && totalStats.totalSavedPercentage > 0 ? '节省总大小' : '变化总大小'}
                 </div>
-                <div style={{ 
-                  fontSize: '16px', 
+                <div style={{
+                  fontSize: '16px',
                   fontWeight: 'bold',
                   color: totalStats.totalSavedPercentage !== null && totalStats.totalSavedPercentage > 0 ? '#1890ff' : '#ff9800'
                 }}>
@@ -460,16 +488,16 @@ function LosslessCompressDemo() {
       {results.length > 0 && (
         <div style={{ marginTop: '20px' }}>
           <h3>压缩结果列表</h3>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
             gap: '20px',
             marginTop: '15px'
           }}>
             {results.map((item, index) => (
-              <div key={index} style={{ 
-                border: '1px solid #ddd', 
-                borderRadius: '8px', 
+              <div key={index} style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
                 padding: '15px',
                 backgroundColor: 'white'
               }}>
@@ -478,7 +506,7 @@ function LosslessCompressDemo() {
                     {item.file.name}
                     {compressingIndex === index && <span style={{ color: '#1890ff', marginLeft: '10px' }}>⏳ 压缩中...</span>}
                   </h4>
-                  
+
                   {item.error ? (
                     <div style={{ padding: '10px', backgroundColor: '#ffebee', borderRadius: '4px', color: '#c62828' }}>
                       ❌ 压缩失败: {item.error}
@@ -486,24 +514,24 @@ function LosslessCompressDemo() {
                   ) : item.result ? (
                     <>
                       {/* 三栏对比 */}
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(3, 1fr)', 
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
                         gap: '10px',
                         marginBottom: '10px'
                       }}>
                         {/* 原始图片 */}
                         <div>
                           <div style={{ fontSize: '11px', color: '#666', marginBottom: '5px' }}>原始</div>
-                          <img 
-                            src={item.preview.dataURL} 
-                            alt="原始" 
-                            style={{ 
-                              width: '100%', 
-                              height: 'auto', 
+                          <img
+                            src={item.preview.dataURL}
+                            alt="原始"
+                            style={{
+                              width: '100%',
+                              height: 'auto',
                               borderRadius: '4px',
                               border: '1px solid #eee'
-                            }} 
+                            }}
                           />
                           <div style={{ fontSize: '10px', color: '#666', marginTop: '5px' }}>
                             {item.result.originalSizeFormatted || '未知'}
@@ -513,12 +541,12 @@ function LosslessCompressDemo() {
                         {/* 优化后 */}
                         <div>
                           <div style={{ fontSize: '11px', color: '#666', marginBottom: '5px' }}>优化</div>
-                          <img 
-                            src={item.optimizedUrl} 
-                            alt="优化" 
-                            style={{ 
-                              width: '100%', 
-                              height: 'auto', 
+                          <img
+                            src={item.optimizedUrl}
+                            alt="优化"
+                            style={{
+                              width: '100%',
+                              height: 'auto',
                               borderRadius: '4px',
                               border: '1px solid #eee'
                             }}
@@ -534,15 +562,15 @@ function LosslessCompressDemo() {
                         {/* 无损压缩 */}
                         <div>
                           <div style={{ fontSize: '11px', color: '#666', marginBottom: '5px' }}>无损</div>
-                          <img 
-                            src={item.result.dataURL} 
-                            alt="无损压缩" 
-                            style={{ 
-                              width: '100%', 
-                              height: 'auto', 
+                          <img
+                            src={item.result.dataURL}
+                            alt="无损压缩"
+                            style={{
+                              width: '100%',
+                              height: 'auto',
                               borderRadius: '4px',
                               border: '1px solid #eee'
-                            }} 
+                            }}
                           />
                           <div style={{ fontSize: '10px', color: '#52c41a', marginTop: '5px', fontWeight: 'bold' }}>
                             {item.result.compressedSizeFormatted}
@@ -551,8 +579,8 @@ function LosslessCompressDemo() {
                       </div>
 
                       {/* 压缩信息 */}
-                      <div style={{ 
-                        padding: '10px', 
+                      <div style={{
+                        padding: '10px',
                         backgroundColor: '#f5f5f5',
                         borderRadius: '4px',
                         fontSize: '12px'
@@ -565,15 +593,15 @@ function LosslessCompressDemo() {
                         </div>
                         <div style={{ marginBottom: '5px' }}>
                           <strong>压缩效果:</strong>
-                          <span style={{ 
+                          <span style={{
                             color: item.result.savedPercentage !== null && item.result.savedPercentage > 0 ? '#52c41a' : '#ff9800',
                             fontWeight: 'bold',
                             marginLeft: '5px'
                           }}>
-                            {item.result.savedPercentage !== null 
+                            {item.result.savedPercentage !== null
                               ? (item.result.savedPercentage > 0
-                                  ? `节省 ${item.result.savedSizeFormatted || '未知'} (${item.result.savedPercentage}%)`
-                                  : `增加 ${item.result.savedSizeFormatted || '未知'} (+${Math.abs(item.result.savedPercentage)}%)`)
+                                ? `节省 ${item.result.savedSizeFormatted || '未知'} (${item.result.savedPercentage}%)`
+                                : `增加 ${item.result.savedSizeFormatted || '未知'} (+${Math.abs(item.result.savedPercentage)}%)`)
                               : '无法计算'}
                           </span>
                         </div>
@@ -584,14 +612,14 @@ function LosslessCompressDemo() {
 
                       {/* 上传状态显示 */}
                       {uploadStatus[item.index] && (
-                        <div style={{ 
+                        <div style={{
                           marginTop: '10px',
                           padding: '8px',
-                          backgroundColor: uploadStatus[item.index].uploading 
-                            ? '#e3f2fd' 
-                            : uploadStatus[item.index].success 
-                            ? '#e8f5e9' 
-                            : '#ffebee',
+                          backgroundColor: uploadStatus[item.index].uploading
+                            ? '#e3f2fd'
+                            : uploadStatus[item.index].success
+                              ? '#e8f5e9'
+                              : '#ffebee',
                           borderRadius: '4px',
                           fontSize: '12px'
                         }}>
@@ -603,23 +631,23 @@ function LosslessCompressDemo() {
                           {uploadStatus[item.index].success && (
                             <div style={{ color: '#52c41a' }}>
                               ✅ 上传成功！
-                                {uploadStatus[item.index].result && (
-                                  <div style={{ fontSize: '11px', marginTop: '5px', color: '#666' }}>
-                                    文件URL: 
-                                    <div 
-                                      title={uploadStatus[item.index].result.url}
-                                      style={{
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                        wordBreak: 'break-all',
-                                        maxWidth: '100%'
-                                      }}
-                                    >
-                                      {uploadStatus[item.index].result.url}
-                                    </div>
+                              {uploadStatus[item.index].result && (
+                                <div style={{ fontSize: '11px', marginTop: '5px', color: '#666' }}>
+                                  文件URL:
+                                  <div
+                                    title={uploadStatus[item.index].result.url}
+                                    style={{
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      wordBreak: 'break-all',
+                                      maxWidth: '100%'
+                                    }}
+                                  >
+                                    {uploadStatus[item.index].result.url}
                                   </div>
-                                )}
+                                </div>
+                              )}
                             </div>
                           )}
                           {uploadStatus[item.index].error && (
@@ -631,13 +659,13 @@ function LosslessCompressDemo() {
                       )}
 
                       {/* 操作按钮 */}
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: '1fr 1fr', 
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
                         gap: '10px',
                         marginTop: '10px'
                       }}>
-                        <button 
+                        <button
                           onClick={() => handleDownload(item)}
                           style={{
                             padding: '8px',
@@ -651,7 +679,7 @@ function LosslessCompressDemo() {
                         >
                           下载
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleManualUpload(item, item.index)}
                           disabled={uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success}
                           style={{
@@ -669,11 +697,11 @@ function LosslessCompressDemo() {
                             opacity: uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success ? 0.6 : 1
                           }}
                         >
-                          {uploadStatus[item.index]?.uploading 
-                            ? '上传中...' 
-                            : uploadStatus[item.index]?.success 
-                            ? '已上传' 
-                            : '上传到后端'}
+                          {uploadStatus[item.index]?.uploading
+                            ? '上传中...'
+                            : uploadStatus[item.index]?.success
+                              ? '已上传'
+                              : '上传到后端'}
                         </button>
                       </div>
                     </>
@@ -722,9 +750,9 @@ function OnlineImageOptimizeDemo() {
   };
 
   return (
-    <div style={{ 
-      padding: '20px', 
-      border: '1px solid #ddd', 
+    <div style={{
+      padding: '20px',
+      border: '1px solid #ddd',
       borderRadius: '8px',
       backgroundColor: '#f9f9f9'
     }}>
@@ -754,15 +782,15 @@ function OnlineImageOptimizeDemo() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         {/* 原始图片展示 */}
-        <div style={{ marginBottom: '30px',width: '48%' }}>
+        <div style={{ marginBottom: '30px', width: '48%' }}>
           <h3>原始图片</h3>
-          <div style={{ 
-            border: '1px solid #ddd', 
-            borderRadius: '8px', 
+          <div style={{
+            border: '1px solid #ddd',
+            borderRadius: '8px',
             padding: '15px',
             backgroundColor: 'white',
           }}>
-            <h3 style={ {marginTop: '0px'} }>优化前的图片</h3>
+            <h3 style={{ marginTop: '0px' }}>优化前的图片</h3>
             <LazyImage
               src={imageUrl}
               alt="原始高清图片"
@@ -778,58 +806,58 @@ function OnlineImageOptimizeDemo() {
                 console.log('原始图片加载完成', optimizationInfo);
               }}
             />
-              <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
-                图片URL: 
-                <div title={imageUrl} style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  wordBreak: 'break-all',
-                  maxWidth: '100%'
-                }}>
-                  {imageUrl}
-                </div>
+            <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+              图片URL:
+              <div title={imageUrl} style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                wordBreak: 'break-all',
+                maxWidth: '100%'
+              }}>
+                {imageUrl}
               </div>
+            </div>
           </div>
         </div>
         {/* 优化后的图片列表 */}
         {optimizedImages.length > 0 && (
           <div style={{ width: '48%' }}>
             <h3>优化后的图片 ({optimizedImages.length})</h3>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
               gap: '20px',
               marginTop: '15px'
             }}>
               {optimizedImages.map((item, index) => (
-                <div key={item.timestamp} style={{ 
-                  border: '1px solid #ddd', 
-                  borderRadius: '8px', 
+                <div key={item.timestamp} style={{
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
                   padding: '15px',
                   backgroundColor: 'white'
                 }}>
                   <h4 style={{ marginTop: 0, marginBottom: '15px' }}>
                     优化结果 #{index + 1}
                   </h4>
-                  
+
                   {/* 优化后的图片 */}
                   <div style={{ marginBottom: '15px' }}>
-                    <img 
-                      src={item.optimized.dataURL} 
+                    <img
+                      src={item.optimized.dataURL}
                       alt="优化后的图片"
-                      style={{ 
-                        width: '100%', 
-                        height: 'auto', 
+                      style={{
+                        width: '100%',
+                        height: 'auto',
                         borderRadius: '4px',
                         border: '1px solid #eee'
-                      }} 
+                      }}
                     />
                   </div>
 
                   {/* 优化信息 */}
-                  <div style={{ 
-                    padding: '10px', 
+                  <div style={{
+                    padding: '10px',
                     backgroundColor: '#f5f5f5',
                     borderRadius: '4px',
                     fontSize: '12px'
@@ -844,7 +872,7 @@ function OnlineImageOptimizeDemo() {
                       <strong>原始大小:</strong> {item.optimized.originalSizeFormatted || '未知'}
                     </div>
                     <div style={{ marginBottom: '5px' }}>
-                      <strong>优化后大小:</strong> 
+                      <strong>优化后大小:</strong>
                       <span style={{ color: '#52c41a', fontWeight: 'bold', marginLeft: '5px' }}>
                         {item.optimized.compressedSizeFormatted}
                       </span>
@@ -852,7 +880,7 @@ function OnlineImageOptimizeDemo() {
                     {item.optimized.savedPercentage !== null && (
                       <div style={{ marginBottom: '5px' }}>
                         <strong>节省:</strong>
-                        <span style={{ 
+                        <span style={{
                           color: item.optimized.savedPercentage > 0 ? '#52c41a' : '#ff9800',
                           fontWeight: 'bold',
                           marginLeft: '5px'
@@ -870,7 +898,7 @@ function OnlineImageOptimizeDemo() {
                   </div>
 
                   {/* 下载按钮 */}
-                  <button 
+                  <button
                     onClick={() => downloadCompressedImage(item.optimized.blob, `optimized-${index + 1}.${item.optimized.compressedFormat}`)}
                     style={{
                       width: '100%',
@@ -976,13 +1004,13 @@ function OnlineImageStressTest() {
         ms: totalTimeMs,
         seconds: totalTimeSeconds,
         minutes: totalTimeMinutes,
-        formatted: totalTimeMs < 60000 
-          ? `${totalTimeSeconds} 秒` 
+        formatted: totalTimeMs < 60000
+          ? `${totalTimeSeconds} 秒`
           : `${totalTimeMinutes} 分钟 (${totalTimeSeconds} 秒)`
       });
 
       const totalSaved = totalOriginalSize > 0 ? (totalOriginalSize - totalCompressedSize) : null;
-      const totalSavedPercentage = totalOriginalSize > 0 
+      const totalSavedPercentage = totalOriginalSize > 0
         ? parseFloat(((totalSaved / totalOriginalSize) * 100).toFixed(2))
         : null;
 
@@ -1007,9 +1035,9 @@ function OnlineImageStressTest() {
   }, []); // 只在组件挂载时执行一次
 
   return (
-    <div style={{ 
-      padding: '20px', 
-      border: '1px solid #ddd', 
+    <div style={{
+      padding: '20px',
+      border: '1px solid #ddd',
       borderRadius: '8px',
       backgroundColor: '#f9f9f9'
     }}>
@@ -1019,18 +1047,18 @@ function OnlineImageStressTest() {
       </p>
 
       {/* 进度和统计信息 */}
-      <div style={{ 
-        padding: '15px', 
+      <div style={{
+        padding: '15px',
         backgroundColor: loading ? '#e3f2fd' : '#e8f5e9',
         borderRadius: '4px',
         marginBottom: '20px'
       }}>
         <div style={{ marginBottom: '10px' }}>
-          <strong>处理进度:</strong> {progress.current} / {progress.total} 
-          <div style={{ 
-            width: '100%', 
-            height: '20px', 
-            backgroundColor: '#e0e0e0', 
+          <strong>处理进度:</strong> {progress.current} / {progress.total}
+          <div style={{
+            width: '100%',
+            height: '20px',
+            backgroundColor: '#e0e0e0',
             borderRadius: '10px',
             marginTop: '10px',
             overflow: 'hidden'
@@ -1073,16 +1101,16 @@ function OnlineImageStressTest() {
         )}
 
         {stats && !loading && (
-          <div style={{ 
+          <div style={{
             marginTop: '15px',
             padding: '10px',
             backgroundColor: 'white',
             borderRadius: '4px'
           }}>
             <h4 style={{ marginTop: 0, marginBottom: '10px' }}>统计信息</h4>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
               gap: '10px',
               fontSize: '12px'
             }}>
@@ -1112,8 +1140,8 @@ function OnlineImageStressTest() {
               </div>
               <div>
                 <div style={{ color: '#666' }}>节省总大小</div>
-                <div style={{ 
-                  fontSize: '16px', 
+                <div style={{
+                  fontSize: '16px',
                   fontWeight: 'bold',
                   color: stats.totalSavedPercentage > 0 ? '#1890ff' : '#ff9800'
                 }}>
@@ -1134,25 +1162,25 @@ function OnlineImageStressTest() {
       {optimizedImages.length > 0 && (
         <div>
           <h3>优化结果 ({optimizedImages.length} 张)</h3>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
             gap: '15px',
             marginTop: '15px'
           }}>
             {optimizedImages.map((item, index) => (
-              <div key={item.timestamp || index} style={{ 
-                border: '1px solid #ddd', 
-                borderRadius: '8px', 
+              <div key={item.timestamp || index} style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
                 padding: '10px',
                 backgroundColor: 'white',
                 position: 'relative'
               }}>
                 {item.success ? (
                   <>
-                    <div style={{ 
-                      position: 'absolute', 
-                      top: '5px', 
+                    <div style={{
+                      position: 'absolute',
+                      top: '5px',
                       right: '5px',
                       backgroundColor: '#52c41a',
                       color: 'white',
@@ -1163,24 +1191,24 @@ function OnlineImageStressTest() {
                     }}>
                       #{item.index}
                     </div>
-                    <img 
-                      src={item.optimized.dataURL} 
+                    <img
+                      src={item.optimized.dataURL}
                       alt={`优化图片 ${item.index}`}
-                      style={{ 
-                        width: '100%', 
-                        height: 'auto', 
+                      style={{
+                        width: '100%',
+                        height: 'auto',
                         borderRadius: '4px',
                         border: '1px solid #eee'
-                      }} 
+                      }}
                     />
-                    <div style={{ 
-                      marginTop: '8px', 
+                    <div style={{
+                      marginTop: '8px',
                       fontSize: '11px',
                       color: '#666'
                     }}>
                       <div>大小: {item.optimized.compressedSizeFormatted}</div>
                       {item.optimized.savedPercentage !== null && (
-                        <div style={{ 
+                        <div style={{
                           color: item.optimized.savedPercentage > 0 ? '#52c41a' : '#ff9800'
                         }}>
                           节省: {item.optimized.savedPercentage > 0 ? '-' : '+'}{Math.abs(item.optimized.savedPercentage)}%
@@ -1189,8 +1217,8 @@ function OnlineImageStressTest() {
                     </div>
                   </>
                 ) : (
-                  <div style={{ 
-                    padding: '20px', 
+                  <div style={{
+                    padding: '20px',
                     textAlign: 'center',
                     color: '#f5222d'
                   }}>
@@ -1218,10 +1246,10 @@ function BlurToClearDemo() {
   const [stageInfo3, setStageInfo3] = useState('');
 
   return (
-    <div style={{ 
+    <div style={{
       marginTop: '40px',
-      padding: '20px', 
-      border: '1px solid #ddd', 
+      padding: '20px',
+      border: '1px solid #ddd',
       borderRadius: '8px',
       backgroundColor: '#f9f9f9'
     }}>
@@ -1231,9 +1259,9 @@ function BlurToClearDemo() {
         先加载极小的模糊占位图，然后逐步加载更清晰的版本，最后加载原图。
       </p>
 
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
         gap: '20px',
         marginTop: '20px'
       }}>
@@ -1334,7 +1362,7 @@ function BlurToClearDemo() {
       </div>
 
       {/* 使用说明 */}
-      <div style={{ 
+      <div style={{
         marginTop: '20px',
         padding: '15px',
         backgroundColor: '#e3f2fd',
@@ -1467,10 +1495,10 @@ function ProgressiveLoadDemo() {
   };
 
   return (
-    <div style={{ 
+    <div style={{
       marginTop: '40px',
-      padding: '20px', 
-      border: '1px solid #ddd', 
+      padding: '20px',
+      border: '1px solid #ddd',
       borderRadius: '8px',
       backgroundColor: '#f9f9f9'
     }}>
@@ -1503,19 +1531,19 @@ function ProgressiveLoadDemo() {
       {/* 进度条 */}
       {loading && (
         <div style={{ marginBottom: '20px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
             marginBottom: '10px',
             fontSize: '14px'
           }}>
             <span>加载进度: {progress.toFixed(1)}%</span>
             <span>{images.filter(img => img && img.loaded).length} / 100 已加载</span>
           </div>
-          <div style={{ 
-            width: '100%', 
-            height: '24px', 
-            backgroundColor: '#e0e0e0', 
+          <div style={{
+            width: '100%',
+            height: '24px',
+            backgroundColor: '#e0e0e0',
             borderRadius: '12px',
             overflow: 'hidden'
           }}>
@@ -1539,16 +1567,16 @@ function ProgressiveLoadDemo() {
 
       {/* 统计信息 */}
       {stats && !loading && (
-        <div style={{ 
-          padding: '15px', 
+        <div style={{
+          padding: '15px',
           backgroundColor: '#e8f5e9',
           borderRadius: '4px',
           marginBottom: '20px'
         }}>
           <h4 style={{ marginTop: 0, marginBottom: '10px' }}>加载统计</h4>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
             gap: '10px',
             fontSize: '14px'
           }}>
@@ -1582,9 +1610,9 @@ function ProgressiveLoadDemo() {
       {images.length > 0 && (
         <div>
           <h4 style={{ marginBottom: '15px' }}>图片展示 ({images.filter(img => img).length} 张)</h4>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
             gap: '10px',
             maxHeight: '600px',
             overflowY: 'auto',
@@ -1594,7 +1622,7 @@ function ProgressiveLoadDemo() {
           }}>
             {images.map((img, i) => (
               img ? (
-                <div key={i} style={{ 
+                <div key={i} style={{
                   position: 'relative',
                   aspectRatio: '1',
                   borderRadius: '4px',
@@ -1619,29 +1647,29 @@ function ProgressiveLoadDemo() {
                       <div style={{ fontSize: '10px' }}>加载失败</div>
                     </div>
                   ) : (
-                    <img 
-                      src={img.url} 
+                    <img
+                      src={img.url}
                       alt={`图片 ${i + 1}`}
-                      style={{ 
-                        width: '100%', 
-                        height: '100%', 
+                      style={{
+                        width: '100%',
+                        height: '100%',
                         objectFit: 'cover',
                         transition: 'filter 0.3s ease-in-out, opacity 0.3s ease-in-out',
                         // 真正的渐进式加载资源 + CSS模糊效果增强视觉体验
-                        filter: img.currentStage === 1 ? 'blur(10px)' : 
-                                img.currentStage === 2 ? 'blur(3px)' : 
-                                'blur(0px)',
+                        filter: img.currentStage === 1 ? 'blur(10px)' :
+                          img.currentStage === 2 ? 'blur(3px)' :
+                            'blur(0px)',
                         opacity: img.isComplete ? 1 : 0.95,
-                      }} 
+                      }}
                     />
                   )}
                   <div style={{
                     position: 'absolute',
                     top: '2px',
                     right: '2px',
-                    backgroundColor: img.error ? '#f5222d' : 
-                                    img.isComplete ? '#52c41a' : 
-                                    '#1890ff',
+                    backgroundColor: img.error ? '#f5222d' :
+                      img.isComplete ? '#52c41a' :
+                        '#1890ff',
                     color: 'white',
                     padding: '2px 6px',
                     borderRadius: '4px',
@@ -1657,7 +1685,7 @@ function ProgressiveLoadDemo() {
                   </div>
                 </div>
               ) : (
-                <div key={i} style={{ 
+                <div key={i} style={{
                   aspectRatio: '1',
                   backgroundColor: '#f5f5f5',
                   borderRadius: '4px',
@@ -1724,7 +1752,7 @@ function App() {
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <h1 style={{ marginBottom: '30px' }}>图片优化工具演示</h1>
-      
+
       <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}>
         {/* 第一页：LazyImage 组件示例 */}
         <div>
@@ -1732,12 +1760,12 @@ function App() {
           <p style={{ color: '#666', marginBottom: '20px' }}>
             展示 LazyImage 组件的懒加载和图片优化功能
           </p>
-          
+
           <div style={{ marginBottom: '20px' }}>
             <h3>懒加载示例</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
               {Array.from({ length: 6 }).map((_, i) => (
-                <LazyImage 
+                <LazyImage
                   key={i}
                   src="https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg"
                   alt={`懒加载图片 ${i + 1}`}
@@ -1748,7 +1776,7 @@ function App() {
                     width: 1376,
                     quality: 90
                   }}
-                  onOptimization={(info) => {}}
+                  onOptimization={(info) => { }}
                   onLoad={(event, optimizationInfo) => {
                     // console.log(`图片 ${i + 1} 加载完成`);
                   }}
