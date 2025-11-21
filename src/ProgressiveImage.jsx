@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { loadImageProgressive, generateBlurPlaceholderUrl } from '../imageOptimize.js';
+import { loadImageProgressive, generateBlurPlaceholderUrl } from '../lib/imageOptimize.js';
 import './LazyImage.css';
 
 /**

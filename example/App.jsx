@@ -4,8 +4,8 @@ import {
   losslessCompress,
   downloadCompressedImage,
   validateImageFile
-} from '../losslessCompress.js';
-import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../imageOptimize.js';
+} from '../lib/losslessCompress.js';
+import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../lib/imageOptimize.js';
 import '../src/LazyImage.css';
 
 // 无损压缩对比组件
@@ -1388,12 +1388,30 @@ function ProgressiveLoadDemo() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState(null);
+  const [hasAutoLoaded, setHasAutoLoaded] = useState(false); // 标记是否已自动加载
 
-  // 生成100张图片URL（使用相同的图片URL作为示例）
+  // 生成100张不同的真实图片URL（使用 Picsum API）
   const generateImageUrls = () => {
-    const baseUrl = "https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg";
-    return Array.from({ length: 100 }, (_, i) => ({
-      url: baseUrl,
+    // 使用 Picsum (Lorem Picsum) API 获取100张不同的真实图片
+    // 格式: https://picsum.photos/id/{id}/{width}/{height}
+    // ID范围: 1-1000，我们使用不同的ID确保每张图片都不同
+    // 注意：Picsum API 支持直接指定尺寸，但不支持 quality 等CDN优化参数
+    const imageIds = [
+      // 前20张：高优先级，使用较小的ID（加载更快）
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+      // 中间30张：中等优先级
+      21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+      41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+      // 后50张：低优先级
+      51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
+      71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+      91, 92, 93, 94, 95, 96, 97, 98, 99, 100
+    ];
+    
+    return imageIds.map((id, i) => ({
+      // 使用原图URL（Picsum支持直接访问原图，不指定尺寸）
+      // 渐进式加载会通过 stages 中的 width 参数生成不同尺寸的URL
+      url: `https://picsum.photos/id/${id}`,
       priority: i < 20 ? 10 : (i < 50 ? 5 : 0), // 前20张优先级最高
       index: i,
     }));
@@ -1409,16 +1427,101 @@ function ProgressiveLoadDemo() {
     let successCount = 0;
     let failCount = 0;
 
+    // Picsum API URL转换函数（业务逻辑）
+    const picsumUrlTransformer = (url, stage, stageIndex) => {
+      if (!url.includes('picsum.photos')) {
+        return null; // 不是Picsum URL，使用默认处理
+      }
+      
+      try {
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/').filter(p => p);
+        
+        // 提取 ID（路径格式: /id/{id} 或 /id/{id}/{width}/{height}）
+        let imageId = null;
+        if (pathParts.length >= 2 && pathParts[0] === 'id') {
+          imageId = pathParts[1];
+        }
+        
+        if (imageId) {
+          // 如果有尺寸参数（且不为null），使用尺寸参数构建URL
+          // Picsum API 要求同时提供 width 和 height
+          if (stage.width != null && stage.height != null) {
+            return `https://picsum.photos/id/${imageId}/${stage.width}/${stage.height}`;
+          } else if (stage.width != null) {
+            // 如果只有 width，使用相同的值作为 height（保持比例）
+            return `https://picsum.photos/id/${imageId}/${stage.width}/${stage.width}`;
+          } else if (stage.height != null) {
+            // 如果只有 height，使用相同的值作为 width（保持比例）
+            return `https://picsum.photos/id/${imageId}/${stage.height}/${stage.height}`;
+          } else {
+            // 没有尺寸参数，使用原图（不指定尺寸）
+            return `https://picsum.photos/id/${imageId}`;
+          }
+        }
+      } catch (error) {
+        // URL 解析失败，使用默认处理
+      }
+      
+      return null; // 使用默认处理
+    };
+
+    // Picsum API 错误处理函数（业务逻辑）
+    const picsumOnStageError = async (error, stageIndex, stageUrl, stage) => {
+      // 检查是否是404错误
+      const is404 = error.message.includes('404') || error.message.includes('不存在');
+      
+      if (!is404 || !stageUrl.includes('picsum.photos')) {
+        return null; // 不是404或不是Picsum URL，不处理
+      }
+      
+      try {
+        const urlObj = new URL(stageUrl);
+        const pathParts = urlObj.pathname.split('/').filter(p => p);
+        let imageId = null;
+        if (pathParts.length >= 2 && pathParts[0] === 'id') {
+          imageId = pathParts[1];
+        }
+        
+        if (imageId && stageIndex < 2) {
+          // 尝试使用原图URL（不指定尺寸）作为降级方案
+          const fallbackUrl = `https://picsum.photos/id/${imageId}`;
+          
+          // 快速验证原图是否存在
+          try {
+            const response = await fetch(fallbackUrl, { method: 'HEAD' });
+            if (response.ok) {
+              return fallbackUrl; // 返回降级URL
+            }
+          } catch (fetchError) {
+            // HEAD请求失败，忽略
+          }
+        }
+      } catch (parseError) {
+        // URL解析失败，忽略
+      }
+      
+      return null; // 不提供降级URL
+    };
+
     const results = await loadImagesProgressively(imageList, {
-      concurrency: 100, // 高并发
+      concurrency: 100, // 降低并发数，避免API限制（100张图片 × 3阶段 = 300个请求）
       timeout: 30000,
       priority: true, // 启用优先级
+      retryOnError: true, // 启用重试
+      maxRetries: 2, // 最大重试2次
       // 渐进式加载阶段：从模糊到清晰
+      // 注意：Picsum API 支持尺寸参数，但不支持 quality 等CDN优化参数
+      // 我们通过不同尺寸实现渐进式加载效果
       stages: [
-        { width: 20, quality: 20 },   // 阶段1: 极速模糊图
-        { width: 400, quality: 50 },   // 阶段2: 中等质量
-        { width: null, quality: 80 }    // 阶段3: 最终质量（原图）
+        { width: 50, height: 50 },   // 阶段1: 极小图（50x50）
+        { width: 200, height: 200 },   // 阶段2: 小图（200x200）
+        { width: null, height: null }    // 阶段3: 原图（不指定尺寸）
       ],
+      // 业务逻辑：Picsum API URL转换
+      urlTransformer: picsumUrlTransformer,
+      // 业务逻辑：Picsum API 404错误处理
+      onStageError: picsumOnStageError,
       onProgress: (current, total, result) => {
         const percentage = ((current / total) * 100).toFixed(1);
         setProgress(parseFloat(percentage));
@@ -1492,7 +1595,15 @@ function ProgressiveLoadDemo() {
     });
 
     setLoading(false);
+    setHasAutoLoaded(true); // 标记已加载
   };
+
+  // 组件挂载时自动触发加载
+  useEffect(() => {
+    if (!hasAutoLoaded && !loading) {
+      handleStartLoading();
+    }
+  }, []); // 只在组件挂载时执行一次
 
   return (
     <div style={{
@@ -1708,7 +1819,7 @@ function ProgressiveLoadDemo() {
 
 // 简单的 Tabs 组件
 function Tabs({ children, tabs }) {
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(3); // 默认打开第4个Tab（渐进式加载示例）
 
   return (
     <div>

@@ -6,7 +6,8 @@ import {
   compressImageInBrowser,
   dataURLToBlob,
   formatFileSize,
-} from '../imageOptimize.js';
+} from '../lib/imageOptimize.js';
+import { loadImageWithCache, saveImageCache } from './imageCache.js';
 import './LazyImage.css';
 
 /**
@@ -71,6 +72,8 @@ export default function LazyImage({
   const [lockedSrc, setLockedSrc] = useState('');
   const [compressedSrc, setCompressedSrc] = useState(null); // 浏览器端压缩后的图片
   const [isCompressing, setIsCompressing] = useState(false);
+  const [cachedBlobUrl, setCachedBlobUrl] = useState(null); // 缓存的 Blob URL
+  const cachedBlobUrlRef = useRef(null); // 用于清理 Blob URL
 
   // 获取优化后的URL
   const getOptimizedUrl = (imageSrc) => {
@@ -98,12 +101,17 @@ export default function LazyImage({
       return compressedSrc;
     }
     
+    // 如果有缓存的 Blob URL，优先使用
+    if (cachedBlobUrl) {
+      return cachedBlobUrl;
+    }
+    
     if (isLoaded && lockedSrc) {
       return lockedSrc;
     }
     
     return getOptimizedUrl(src);
-  }, [src, isLoaded, lockedSrc, optimize, compressedSrc]);
+  }, [src, isLoaded, lockedSrc, optimize, compressedSrc, cachedBlobUrl]);
 
   // 初始化 Intersection Observer
   const initObserver = () => {
@@ -155,6 +163,23 @@ export default function LazyImage({
     setIsLoading(false);
     setHasError(false);
     setLockedSrc(currentSrc);
+    
+    // 如果不是从缓存加载的（不是 Blob URL），则保存到缓存
+    if (!currentSrc.startsWith('blob:') && !currentSrc.startsWith('data:')) {
+      try {
+        const finalUrl = getOptimizedUrl(src);
+        const response = await fetch(finalUrl);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const imageData = new Uint8Array(arrayBuffer);
+          const mimeType = response.headers.get('Content-Type') || 'image/jpeg';
+          await saveImageCache(finalUrl, imageData, mimeType);
+        }
+      } catch (error) {
+        // 保存缓存失败，不影响图片显示
+        console.warn('保存图片缓存失败:', error);
+      }
+    }
     
     // 获取优化信息并传递给回调
     let optimizationInfo = null;
@@ -365,57 +390,86 @@ export default function LazyImage({
     }
   };
 
-  // 监听 shouldLoad 变化，如果CDN不支持优化，尝试浏览器端压缩
+  // 监听 shouldLoad 变化，先检查缓存，如果CDN不支持优化，尝试浏览器端压缩
   useEffect(() => {
-    if (shouldLoad && !isLoaded && !hasError && !isLoading && !isCompressing && src) {
-      // 检查是否支持CDN优化，如果不支持且允许浏览器端压缩，则进行压缩
-      const cdn = detectCDN(src);
-      const shouldUseBrowserCompression = 
-        enableBrowserCompression && // 允许浏览器端压缩
-        !cdn && // 不支持CDN
-        optimize && Object.keys(optimize).length > 0 && // 有优化配置
-        typeof window !== 'undefined' && // 浏览器环境
-        !compressedSrc; // 还没压缩过
+    if (shouldLoad && !isLoaded && !hasError && !isLoading && !isCompressing && !cachedBlobUrl && src) {
+      // 先尝试从缓存加载
+      const loadFromCache = async () => {
+        try {
+          const finalUrl = getOptimizedUrl(src);
+          const blobUrl = await loadImageWithCache(finalUrl);
+          if (blobUrl) {
+            setCachedBlobUrl(blobUrl);
+            cachedBlobUrlRef.current = blobUrl;
+            // 从缓存加载时，不设置 isLoading，让图片自然加载
+            // 图片加载完成后会触发 onLoad 事件，自动设置 isLoaded 和 isLoading(false)
+            return true;
+          }
+        } catch (error) {
+          // 缓存加载失败，继续正常流程
+        }
+        return false;
+      };
       
-      if (shouldUseBrowserCompression) {
-        setIsCompressing(true);
-        compressImageInBrowser(src, {
-          maxWidth: optimize.width || null,
-          maxHeight: optimize.height || null,
-          quality: optimize.quality ? optimize.quality / 100 : 0.8,
-          compressionLevel: optimize.compressionLevel !== undefined ? optimize.compressionLevel : 0,
-          blur: optimize.blur !== undefined ? optimize.blur : 0,
-          smooth: optimize.smooth !== undefined ? optimize.smooth : true,
-          format: optimize.format || null,
-        })
-          .then((dataURL) => {
-            setCompressedSrc(dataURL);
-            setIsCompressing(false);
-            
-            // 计算压缩效果
-            const blob = dataURLToBlob(dataURL);
-            // console.log('✅ 已启用浏览器端压缩');
-            // console.log(`压缩后大小: ${formatFileSize(blob.size)}`);
-          })
-          .catch((error) => {
-            console.warn('浏览器端压缩失败，使用原始URL:', error);
-            setIsCompressing(false);
-          });
-      } else {
-        // 如果不需要浏览器端压缩，正常设置加载状态
-        setIsLoading(true);
-      }
+      loadFromCache().then((fromCache) => {
+        if (!fromCache) {
+          // 检查是否支持CDN优化，如果不支持且允许浏览器端压缩，则进行压缩
+          const cdn = detectCDN(src);
+          const shouldUseBrowserCompression = 
+            enableBrowserCompression && // 允许浏览器端压缩
+            !cdn && // 不支持CDN
+            optimize && Object.keys(optimize).length > 0 && // 有优化配置
+            typeof window !== 'undefined' && // 浏览器环境
+            !compressedSrc; // 还没压缩过
+          
+          if (shouldUseBrowserCompression) {
+            setIsCompressing(true);
+            compressImageInBrowser(src, {
+              maxWidth: optimize.width || null,
+              maxHeight: optimize.height || null,
+              quality: optimize.quality ? optimize.quality / 100 : 0.8,
+              compressionLevel: optimize.compressionLevel !== undefined ? optimize.compressionLevel : 0,
+              blur: optimize.blur !== undefined ? optimize.blur : 0,
+              smooth: optimize.smooth !== undefined ? optimize.smooth : true,
+              format: optimize.format || null,
+            })
+              .then((dataURL) => {
+                setCompressedSrc(dataURL);
+                setIsCompressing(false);
+                
+                // 计算压缩效果
+                const blob = dataURLToBlob(dataURL);
+                // console.log('✅ 已启用浏览器端压缩');
+                // console.log(`压缩后大小: ${formatFileSize(blob.size)}`);
+              })
+              .catch((error) => {
+                console.warn('浏览器端压缩失败，使用原始URL:', error);
+                setIsCompressing(false);
+              });
+          } else {
+            // 如果不需要浏览器端压缩，正常设置加载状态
+            setIsLoading(true);
+          }
+        }
+      });
     }
-  }, [shouldLoad, isLoaded, hasError, isLoading, isCompressing, src, optimize, compressedSrc, enableBrowserCompression]);
+  }, [shouldLoad, isLoaded, hasError, isLoading, isCompressing, src, optimize, compressedSrc, cachedBlobUrl, enableBrowserCompression]);
 
   // 监听 src 变化
   useEffect(() => {
+    // 清理之前的 Blob URL
+    if (cachedBlobUrlRef.current) {
+      URL.revokeObjectURL(cachedBlobUrlRef.current);
+      cachedBlobUrlRef.current = null;
+    }
+    
     setIsLoaded(false);
     setHasError(false);
     setIsLoading(false);
     setLockedSrc('');
     setCompressedSrc(null); // 重置压缩图片
     setIsCompressing(false);
+    setCachedBlobUrl(null); // 重置缓存 Blob URL
     optimizationInfoRef.current = null; // 重置优化信息
     
     if (immediate) {
@@ -438,6 +492,11 @@ export default function LazyImage({
         observerRef.current.disconnect();
         observerRef.current = null;
       }
+      // 清理 Blob URL
+      if (cachedBlobUrlRef.current) {
+        URL.revokeObjectURL(cachedBlobUrlRef.current);
+        cachedBlobUrlRef.current = null;
+      }
     };
   }, []);
 
@@ -453,7 +512,7 @@ export default function LazyImage({
       style={containerStyle}
     >
       {/* 占位符 */}
-      {!isLoaded && !hasError && !isLoading && (
+      {!isLoaded && !hasError && !isLoading && !cachedBlobUrl && (
         <div className="image-optimize-placeholder">
           {showPlaceholderIcon && (
             <svg
@@ -474,7 +533,7 @@ export default function LazyImage({
       )}
 
       {/* 加载中 */}
-      {(isLoading || isCompressing) && !hasError && (
+      {(isLoading || isCompressing) && !hasError && !cachedBlobUrl && (
         <div className="image-optimize-loading">
           <svg
             className="image-optimize-loading-icon"
@@ -512,7 +571,7 @@ export default function LazyImage({
           data-id={dataId}
           className={`image-optimize-image ${imageClassName}`.trim()}
           style={{
-            display: isLoaded || (!hasError && optimizedSrc) ? 'block' : 'none',
+            display: isLoaded || cachedBlobUrl || (!hasError && optimizedSrc) ? 'block' : 'none',
             ...imageStyle,
           }}
           onLoad={handleLoad}

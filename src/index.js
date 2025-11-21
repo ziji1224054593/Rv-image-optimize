@@ -21,7 +21,7 @@ export {
   detectCDN,
   compressImageInBrowser,
   dataURLToBlob,
-} from '../imageOptimize.js';
+} from '../lib/imageOptimize.js';
 
 // 导出 LazyImage 组件
 export { default as LazyImage } from './LazyImage.jsx';
@@ -29,6 +29,17 @@ export { default } from './LazyImage.jsx';
 
 // 导出 ProgressiveImage 组件
 export { default as ProgressiveImage } from './ProgressiveImage.jsx';
+
+// 导出图片缓存相关函数
+export {
+  getImageCache,
+  saveImageCache,
+  deleteImageCache,
+  cleanExpiredImageCache,
+  getImageCacheStats,
+  loadImageWithCache,
+  clearImageCache,
+} from './imageCache.js';
 
 // 导入样式（需要在构建时处理）
 import './LazyImage.css';
