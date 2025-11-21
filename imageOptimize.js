@@ -487,6 +487,628 @@ export async function preloadImages(urls, concurrency = 3) {
 }
 
 /**
+ * 渐进式加载图片（支持高并发、错误隔离、独立错误信息、模糊到清晰）
+ * @param {Array<string|Object>} imageList - 图片列表，可以是URL字符串数组，或包含url和priority的对象数组
+ * @param {Object} options - 配置选项
+ * @param {number} options.concurrency - 并发数量（默认10，支持高并发）
+ * @param {number} options.timeout - 单个图片加载超时时间（毫秒，默认30000）
+ * @param {boolean} options.priority - 是否按优先级加载（默认true，priority高的先加载）
+ * @param {Array} options.stages - 渐进式加载阶段配置（可选），例如：
+ *   [
+ *     { width: 20, quality: 20 },   // 阶段1: 极速模糊图
+ *     { width: 400, quality: 50 },  // 阶段2: 中等质量
+ *     { width: null, quality: 80 }  // 阶段3: 最终质量（原图）
+ *   ]
+ *   如果提供stages，每张图片会按阶段加载，从模糊到清晰
+ * @param {Function} options.onProgress - 进度回调函数 (current, total, result) => void
+ * @param {Function} options.onItemComplete - 单个图片加载完成回调 (result) => void
+ * @param {Function} options.onItemStageComplete - 单个图片的阶段完成回调 (result, stageIndex) => void
+ *   result包含: { url, index, stageIndex, stageUrl, stage, currentStage, totalStages }
+ * @param {boolean} options.retryOnError - 是否在失败时重试（默认false）
+ * @param {number} options.maxRetries - 最大重试次数（默认1）
+ * @returns {Promise<Array<{url: string, success: boolean, error: Error|null, index: number, retries: number, stages?: Array}>}
+ */
+export async function loadImagesProgressively(imageList, options = {}) {
+  const {
+    concurrency = 10, // 默认高并发
+    timeout = 30000, // 30秒超时
+    priority = true, // 默认按优先级
+    stages = null, // 渐进式加载阶段（可选）
+    onProgress = null,
+    onItemComplete = null,
+    onItemStageComplete = null, // 阶段完成回调
+    retryOnError = false,
+    maxRetries = 1,
+  } = options;
+
+  // 标准化图片列表
+  const normalizedList = imageList.map((item, index) => {
+    if (typeof item === 'string') {
+      return { url: item, priority: 0, index };
+    }
+    return {
+      url: item.url || item.src || '',
+      priority: item.priority || 0,
+      index: item.index !== undefined ? item.index : index,
+    };
+  });
+
+  // 按优先级排序（priority值越大优先级越高）
+  if (priority) {
+    normalizedList.sort((a, b) => b.priority - a.priority);
+  }
+
+  // 结果数组，保持原始顺序
+  const results = new Array(normalizedList.length);
+  let completedCount = 0;
+  const total = normalizedList.length;
+
+  // 加载单个图片（支持渐进式加载）
+  const loadSingleImage = async (item, retryCount = 0) => {
+    const { url, index } = item;
+    
+    if (!url) {
+      const error = new Error('图片URL为空');
+      const result = {
+        url: '',
+        success: false,
+        error,
+        index,
+        retries: retryCount,
+      };
+      results[index] = result;
+      completedCount++;
+      
+      if (onProgress) {
+        onProgress(completedCount, total, result);
+      }
+      if (onItemComplete) {
+        onItemComplete(result);
+      }
+      return result;
+    }
+
+    // 如果提供了stages，使用渐进式加载
+    if (stages && Array.isArray(stages) && stages.length > 0) {
+      return loadImageProgressive(url, {
+        stages,
+        timeout,
+        onStageComplete: (stageIndex, stageUrl, stage) => {
+          // 触发阶段完成回调
+          if (onItemStageComplete) {
+            onItemStageComplete({
+              url,
+              index,
+              stageIndex,
+              stageUrl,
+              stage,
+              currentStage: stageIndex + 1,
+              totalStages: stages.length,
+            }, stageIndex);
+          }
+        },
+        onComplete: (finalUrl) => {
+          // 全部完成
+        },
+        onError: (error, stageIndex) => {
+          // 错误处理
+        },
+      }).then((progressiveResult) => {
+        const result = {
+          url: progressiveResult.url,
+          success: progressiveResult.success,
+          error: progressiveResult.error,
+          index,
+          retries: retryCount,
+          stages: progressiveResult.stages,
+        };
+
+        results[index] = result;
+        completedCount++;
+
+        // 触发回调
+        if (onProgress) {
+          onProgress(completedCount, total, result);
+        }
+        if (onItemComplete) {
+          onItemComplete(result);
+        }
+
+        return result;
+      });
+    }
+
+    // 普通加载（单阶段）
+    return new Promise((resolve) => {
+      const img = new Image();
+      let isResolved = false;
+      let timeoutId = null;
+
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        img.onload = null;
+        img.onerror = null;
+        img.src = '';
+      };
+
+      const createResult = (success, error = null) => {
+        if (isResolved) return null;
+        isResolved = true;
+        cleanup();
+
+        const result = {
+          url,
+          success,
+          error,
+          index,
+          retries: retryCount,
+        };
+
+        results[index] = result;
+        completedCount++;
+
+        // 触发回调
+        if (onProgress) {
+          onProgress(completedCount, total, result);
+        }
+        if (onItemComplete) {
+          onItemComplete(result);
+        }
+
+        return result;
+      };
+
+      // 设置超时
+      timeoutId = setTimeout(() => {
+        const timeoutError = new Error(`图片加载超时 (${timeout}ms)`);
+        const result = createResult(false, timeoutError);
+        
+        // 如果启用重试且未达到最大重试次数
+        if (retryOnError && retryCount < maxRetries) {
+          // 延迟后重试
+          setTimeout(() => {
+            loadSingleImage(item, retryCount + 1).then(resolve);
+          }, 1000 * (retryCount + 1)); // 递增延迟
+        } else {
+          resolve(result);
+        }
+      }, timeout);
+
+      // 加载成功
+      img.onload = () => {
+        const result = createResult(true, null);
+        if (result) {
+          resolve(result);
+        }
+      };
+
+      // 加载失败
+      img.onerror = (event) => {
+        const error = new Error('图片加载失败');
+        error.originalEvent = event;
+        const result = createResult(false, error);
+        
+        // 如果启用重试且未达到最大重试次数
+        if (retryOnError && retryCount < maxRetries) {
+          // 延迟后重试
+          setTimeout(() => {
+            loadSingleImage(item, retryCount + 1).then(resolve);
+          }, 1000 * (retryCount + 1)); // 递增延迟
+        } else {
+          resolve(result);
+        }
+      };
+
+      // 开始加载
+      try {
+        img.crossOrigin = 'anonymous'; // 允许跨域
+        img.src = url;
+      } catch (error) {
+        const result = createResult(false, error);
+        if (result) {
+          resolve(result);
+        }
+      }
+    });
+  };
+
+  // 并发控制队列
+  const queue = [...normalizedList];
+  const activePromises = new Set();
+  const allPromises = [];
+
+  // 处理队列
+  const processQueue = async () => {
+    while (queue.length > 0 || activePromises.size > 0) {
+      // 如果还有任务且未达到并发限制
+      while (queue.length > 0 && activePromises.size < concurrency) {
+        const item = queue.shift();
+        const promise = loadSingleImage(item)
+          .then((result) => {
+            activePromises.delete(promise);
+            return result;
+          })
+          .catch((error) => {
+            activePromises.delete(promise);
+            // 即使出错也要记录结果
+            const result = {
+              url: item.url,
+              success: false,
+              error: error instanceof Error ? error : new Error(String(error)),
+              index: item.index,
+              retries: 0,
+            };
+            results[item.index] = result;
+            completedCount++;
+            
+            if (onProgress) {
+              onProgress(completedCount, total, result);
+            }
+            if (onItemComplete) {
+              onItemComplete(result);
+            }
+            return result;
+          });
+        
+        activePromises.add(promise);
+        allPromises.push(promise);
+      }
+
+      // 等待至少一个任务完成
+      if (activePromises.size > 0) {
+        await Promise.race(Array.from(activePromises));
+      }
+    }
+  };
+
+  // 开始处理
+  await processQueue();
+
+  // 等待所有任务完成（包括重试的）
+  await Promise.all(allPromises);
+
+  // 返回结果（按原始索引顺序）
+  return results;
+}
+
+/**
+ * 批量加载图片（简化版，基于渐进式加载）
+ * @param {string[]} urls - 图片URL数组
+ * @param {Object} options - 配置选项（同 loadImagesProgressively）
+ * @returns {Promise<Array<{url: string, success: boolean, error: Error|null}>>}
+ */
+export async function loadImagesBatch(urls, options = {}) {
+  return loadImagesProgressively(urls, {
+    priority: false, // 批量加载不需要优先级
+    ...options,
+  });
+}
+
+/**
+ * 生成模糊占位符图片URL（用于渐进式加载）
+ * @param {string} url - 原始图片URL
+ * @param {Object} options - 配置选项
+ * @param {number} options.width - 占位符宽度（默认20）
+ * @param {number} options.height - 占位符高度（可选，默认按比例）
+ * @param {number} options.quality - 图片质量（0-100，默认20）
+ * @param {number} options.blur - 模糊程度（0-10，默认10）
+ * @returns {string} 模糊占位符图片URL
+ */
+export function generateBlurPlaceholderUrl(url, options = {}) {
+  if (!url) return url;
+  
+  const {
+    width = 20,
+    height = null,
+    quality = 20,
+    blur = 10,
+  } = options;
+
+  // 使用 optimizeImageUrl 生成极小模糊图
+  return optimizeImageUrl(url, {
+    width,
+    height,
+    quality,
+    format: 'jpg', // 使用 jpg 格式，文件更小
+  });
+}
+
+/**
+ * 渐进式加载单张图片（模糊到清晰，支持多阶段）
+ * @param {string} url - 原始图片URL
+ * @param {Object} options - 配置选项
+ * @param {Array} options.stages - 加载阶段配置数组，例如：
+ *   [
+ *     { width: 20, quality: 20, blur: 10 },   // 阶段1: 极速模糊图
+ *     { width: 400, quality: 50, blur: 3 },  // 阶段2: 中等质量
+ *     { width: 1200, quality: 80, blur: 0 } // 阶段3: 最终质量
+ *   ]
+ * @param {number} options.timeout - 每个阶段的超时时间（毫秒，默认30000）
+ * @param {Function} options.onStageComplete - 阶段完成回调 (stageIndex, imageUrl, stage) => void
+ * @param {Function} options.onComplete - 全部完成回调 (finalUrl) => void
+ * @param {Function} options.onError - 错误回调 (error, stageIndex) => void
+ * @returns {Promise<{url: string, stages: Array<{url: string, stage: Object, loaded: boolean}>, success: boolean, error: Error|null}>}
+ */
+export async function loadImageProgressive(url, options = {}) {
+  const {
+    stages = [
+      { width: 20, quality: 20, blur: 10 },   // 阶段1: 极速模糊图
+      { width: 400, quality: 50, blur: 3 },   // 阶段2: 中等质量
+      { width: null, quality: 80, blur: 0 }   // 阶段3: 最终质量（原图）
+    ],
+    timeout = 30000,
+    onStageComplete = null,
+    onComplete = null,
+    onError = null,
+  } = options;
+
+  if (!url) {
+    const error = new Error('图片URL为空');
+    if (onError) onError(error, -1);
+    return {
+      url: '',
+      stages: [],
+      success: false,
+      error,
+    };
+  }
+
+  const stageResults = [];
+  let finalUrl = url;
+
+  try {
+    // 按阶段加载
+    for (let i = 0; i < stages.length; i++) {
+      const stage = stages[i];
+      
+      // 生成当前阶段的URL
+      let stageUrl;
+      if (i === stages.length - 1 && !stage.width && !stage.height) {
+        // 最后阶段，如果没有指定尺寸，使用原图
+        stageUrl = url;
+      } else {
+        stageUrl = optimizeImageUrl(url, {
+          width: stage.width || null,
+          height: stage.height || null,
+          quality: stage.quality || 80,
+          format: stage.format || null,
+          autoFormat: stage.autoFormat !== false,
+        });
+      }
+
+      // 加载当前阶段
+      const stageResult = await new Promise((resolve, reject) => {
+        const img = new Image();
+        let timeoutId = null;
+        let isResolved = false;
+
+        const cleanup = () => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+          img.onload = null;
+          img.onerror = null;
+          img.src = '';
+        };
+
+        timeoutId = setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
+            cleanup();
+            const error = new Error(`阶段 ${i + 1} 加载超时`);
+            reject(error);
+          }
+        }, timeout);
+
+        img.onload = () => {
+          if (!isResolved) {
+            isResolved = true;
+            cleanup();
+            resolve({
+              url: stageUrl,
+              stage,
+              loaded: true,
+            });
+          }
+        };
+
+        img.onerror = (event) => {
+          if (!isResolved) {
+            isResolved = true;
+            cleanup();
+            const error = new Error(`阶段 ${i + 1} 加载失败`);
+            error.originalEvent = event;
+            reject(error);
+          }
+        };
+
+        try {
+          img.crossOrigin = 'anonymous';
+          img.src = stageUrl;
+        } catch (error) {
+          if (!isResolved) {
+            isResolved = true;
+            cleanup();
+            reject(error);
+          }
+        }
+      });
+
+      stageResults.push(stageResult);
+      finalUrl = stageUrl;
+
+      // 触发阶段完成回调
+      if (onStageComplete) {
+        onStageComplete(i, stageUrl, stage);
+      }
+
+      // 如果不是最后阶段，可以添加短暂延迟，让用户看到过渡效果
+      if (i < stages.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    // 全部完成
+    if (onComplete) {
+      onComplete(finalUrl);
+    }
+
+    return {
+      url: finalUrl,
+      stages: stageResults,
+      success: true,
+      error: null,
+    };
+  } catch (error) {
+    const errorIndex = stageResults.length;
+    if (onError) {
+      onError(error, errorIndex);
+    }
+    return {
+      url: finalUrl,
+      stages: stageResults,
+      success: false,
+      error,
+    };
+  }
+}
+
+/**
+ * 批量渐进式加载图片（模糊到清晰）
+ * @param {Array<string|Object>} imageList - 图片列表
+ * @param {Object} options - 配置选项
+ * @param {Array} options.stages - 加载阶段配置（同 loadImageProgressive）
+ * @param {number} options.concurrency - 并发数量（默认5，渐进式加载建议较低并发）
+ * @param {number} options.timeout - 每个阶段的超时时间（默认30000）
+ * @param {Function} options.onProgress - 进度回调 (current, total, result) => void
+ * @param {Function} options.onItemStageComplete - 单个图片的阶段完成回调 (result, stageIndex) => void
+ * @param {Function} options.onItemComplete - 单个图片全部完成回调 (result) => void
+ * @returns {Promise<Array>} 加载结果数组
+ */
+export async function loadImagesProgressiveBatch(imageList, options = {}) {
+  const {
+    stages = [
+      { width: 20, quality: 20, blur: 10 },
+      { width: 400, quality: 50, blur: 3 },
+      { width: null, quality: 80, blur: 0 }
+    ],
+    concurrency = 5, // 渐进式加载建议较低并发，避免网络拥塞
+    timeout = 30000,
+    onProgress = null,
+    onItemStageComplete = null,
+    onItemComplete = null,
+  } = options;
+
+  // 标准化图片列表
+  const normalizedList = imageList.map((item, index) => {
+    if (typeof item === 'string') {
+      return { url: item, index };
+    }
+    return {
+      url: item.url || item.src || '',
+      index: item.index !== undefined ? item.index : index,
+    };
+  });
+
+  const results = new Array(normalizedList.length);
+  let completedCount = 0;
+  const total = normalizedList.length;
+
+  // 加载单个图片的渐进式加载
+  const loadSingleProgressive = async (item) => {
+    const { url, index } = item;
+    
+    const result = await loadImageProgressive(url, {
+      stages,
+      timeout,
+      onStageComplete: (stageIndex, stageUrl, stage) => {
+        if (onItemStageComplete) {
+          onItemStageComplete({
+            url,
+            index,
+            stageIndex,
+            stageUrl,
+            stage,
+            currentStage: stageIndex + 1,
+            totalStages: stages.length,
+          }, stageIndex);
+        }
+      },
+      onComplete: (finalUrl) => {
+        // 图片全部加载完成
+      },
+      onError: (error, stageIndex) => {
+        // 错误处理
+      },
+    });
+
+    results[index] = result;
+    completedCount++;
+
+    if (onProgress) {
+      onProgress(completedCount, total, result);
+    }
+    if (onItemComplete) {
+      onItemComplete(result);
+    }
+
+    return result;
+  };
+
+  // 并发控制
+  const queue = [...normalizedList];
+  const activePromises = new Set();
+  const allPromises = [];
+
+  const processQueue = async () => {
+    while (queue.length > 0 || activePromises.size > 0) {
+      while (queue.length > 0 && activePromises.size < concurrency) {
+        const item = queue.shift();
+        const promise = loadSingleProgressive(item)
+          .then((result) => {
+            activePromises.delete(promise);
+            return result;
+          })
+          .catch((error) => {
+            activePromises.delete(promise);
+            const result = {
+              url: item.url,
+              stages: [],
+              success: false,
+              error: error instanceof Error ? error : new Error(String(error)),
+            };
+            results[item.index] = result;
+            completedCount++;
+            if (onProgress) {
+              onProgress(completedCount, total, result);
+            }
+            if (onItemComplete) {
+              onItemComplete(result);
+            }
+            return result;
+          });
+        
+        activePromises.add(promise);
+        allPromises.push(promise);
+      }
+
+      if (activePromises.size > 0) {
+        await Promise.race(Array.from(activePromises));
+      }
+    }
+  };
+
+  await processQueue();
+  await Promise.all(allPromises);
+
+  return results;
+}
+
+/**
  * 在浏览器端压缩图片
  * @param {string|File|Blob} imageSource - 图片源（URL、File或Blob）
  * @param {Object} options - 压缩选项

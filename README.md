@@ -9,6 +9,33 @@ v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格�
 - 📱 **响应式图片**：支持 srcset 和 sizes 属性
 - ⚡ **懒加载**：基于 Intersection Observer 的图片懒加载
 - 🔧 **灵活配置**：支持自定义优化参数和错误处理
+## 无损压缩
+- 🚀 **真正无损**：100% 保留原始质量，无可见差异。
+- 🎨 **多格式支持**：原生处理 PNG/WebP，JPEG 智能转换为最佳无损格式。
+- ⚡ **GPU 加速**：自动启用 GPU 优化，显著提升大图处理速度。
+- 🔗 **UI 组件兼容**：输出格式完美适配 Element UI Upload 等组件。
+- 📞 **回调集成**：内置回调机制，便于无缝上传到服务器。
+- 🔧 **即用即成**：无需手动验证，一步完成压缩与集成。
+- 📦 **批量优化**：高效处理多张图片，支持并发操作。
+- 📊 **智能统计**：详细报告压缩前后大小对比和节省比例。
+## 渐进式加载
+- 🚀 **多阶段自定义加载**：支持灵活配置多个加载阶段，例如先加载极小模糊图（20x20，质量20），逐步过渡到中等质量（400宽，质量50），最后原图（质量80）。
+- 🎨 **平滑视觉过渡**：内置 CSS 动画和模糊效果（filter: blur），实现从低质量模糊到高清清晰的渐变，支持自定义动画时长和样式。
+- ⚡ **高性能并发处理**：通过 `loadImagesProgressively` 函数支持批量加载多张图片，高并发、优先级排序和错误重试，不会阻塞页面。
+- 🔧 **错误与超时控制**：内置超时机制（默认30秒）、重试选项和回调函数（onError、onStageComplete），确保加载可靠，并提供详细错误信息。
+- 📱 **跨框架兼容**：React 中使用 ProgressiveImage 组件直接集成；Vue2/Vue3 通过工具函数（如 loadImageProgressive）手动实现，支持响应式和自定义 UI。
+- 📊 **进度与回调支持**：实时进度回调（onProgress）、阶段完成通知和整体完成事件，便于集成 UI 更新，如进度条或动态显示。
+
+
+### 插件预览地址 
+#### [插件预览地址]( https://imageoptimize.gitee.io/rv-image-optimize)
+### 渐进式加载指南请参考
+####  [ProgressiveImage.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/ProgressiveImage.md)
+### 无损压缩上传指南请参考
+####  [LOSSLESS_COMPRESS.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/LOSSLESS_COMPRESS.md)
+### 自定义样式指南请参考
+####  [STYLE_CUSTOMIZATION.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/STYLE_CUSTOMIZATION.md)
+
 
 ### 安装
 
@@ -567,7 +594,6 @@ function ResponsiveImage({ src }) {
 }
 ```
 
-详细样式自定义请参考 [STYLE_CUSTOMIZATION.md](./STYLE_CUSTOMIZATION.md)
 
 ### 最佳实践
 
@@ -673,7 +699,6 @@ A: 目前无法关闭，但可以通过浏览器控制台过滤日志。
 7. 验证懒加载在不同设备上的表现
 
 
-详细的自定义指南请参考 [STYLE_CUSTOMIZATION.md](https://gitee.com/imageOptimize/Rv-image-optimize/blob/master/STYLE_CUSTOMIZATION.md)
 
 ## License
 

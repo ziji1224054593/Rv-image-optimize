@@ -1,6 +1,6 @@
 {
   "name": "rv-image-optimize",
-  "version": "1.0.2",
+  "version": "2.1.0",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs.js",
@@ -10,7 +10,10 @@
     "dist",
     "src",
     "imageOptimize.js",
-    "losslessCompress.js"
+    "losslessCompress.js",
+    "ProgressiveImage.jsx",
+    "*.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -20,11 +23,13 @@
     },
     "./utils": "./imageOptimize.js",
     "./lossless": "./losslessCompress.js",
+    "./ProgressiveImage": "./ProgressiveImage.jsx",
     "./styles": "./dist/style.css"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:static": "vite build --mode static",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
