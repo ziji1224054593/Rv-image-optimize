@@ -1389,32 +1389,53 @@ function ProgressiveLoadDemo() {
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState(null);
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false); // 标记是否已自动加载
+  const [useDomesticImages, setUseDomesticImages] = useState(true); // 默认使用国内图片
 
-  // 生成100张不同的真实图片URL（使用 Picsum API）
+  // 生成100张不同的真实图片URL
   const generateImageUrls = () => {
-    // 使用 Picsum (Lorem Picsum) API 获取100张不同的真实图片
-    // 格式: https://picsum.photos/id/{id}/{width}/{height}
-    // ID范围: 1-1000，我们使用不同的ID确保每张图片都不同
-    // 注意：Picsum API 支持直接指定尺寸，但不支持 quality 等CDN优化参数
-    const imageIds = [
-      // 前20张：高优先级，使用较小的ID（加载更快）
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-      // 中间30张：中等优先级
-      21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-      41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
-      // 后50张：低优先级
-      51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
-      71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
-      91, 92, 93, 94, 95, 96, 97, 98, 99, 100
-    ];
-    
-    return imageIds.map((id, i) => ({
-      // 使用原图URL（Picsum支持直接访问原图，不指定尺寸）
-      // 渐进式加载会通过 stages 中的 width 参数生成不同尺寸的URL
-      url: `https://picsum.photos/id/${id}`,
-      priority: i < 20 ? 10 : (i < 50 ? 5 : 0), // 前20张优先级最高
-      index: i,
-    }));
+    if (useDomesticImages) {
+      // 使用国内可访问的图片服务
+      // 只使用 DummyImage.com（国内访问较快且稳定）
+      return Array.from({ length: 100 }, (_, i) => {
+        const imageId = i + 1;
+        // 使用不同的颜色和文字生成不同的图片
+        const colors = [
+          '4a90e2', 'e24a4a', '4ae24a', 'e2e24a', 'e24ae2',
+          '4ae2e2', 'ff6b6b', '4ecdc4', '45b7d1', 'f9ca24'
+        ];
+        const color = colors[i % colors.length];
+        
+        return {
+          url: `https://dummyimage.com/800x600/${color}/ffffff&text=Image+${imageId}`,
+          priority: i < 20 ? 10 : (i < 50 ? 5 : 0),
+          index: i,
+        };
+      });
+    } else {
+      // 使用 Picsum (Lorem Picsum) API（国外服务，国内访问较慢）
+      // 格式: https://picsum.photos/id/{id}/{width}/{height}
+      // ID范围: 1-1000，我们使用不同的ID确保每张图片都不同
+      // 注意：Picsum API 支持直接指定尺寸，但不支持 quality 等CDN优化参数
+      const imageIds = [
+        // 前20张：高优先级，使用较小的ID（加载更快）
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        // 中间30张：中等优先级
+        21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+        41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+        // 后50张：低优先级
+        51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
+        71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+        91, 92, 93, 94, 95, 96, 97, 98, 99, 100
+      ];
+      
+      return imageIds.map((id, i) => ({
+        // 使用原图URL（Picsum支持直接访问原图，不指定尺寸）
+        // 渐进式加载会通过 stages 中的 width 参数生成不同尺寸的URL
+        url: `https://picsum.photos/id/${id}`,
+        priority: i < 20 ? 10 : (i < 50 ? 5 : 0), // 前20张优先级最高
+        index: i,
+      }));
+    }
   };
 
   const handleStartLoading = async () => {
@@ -1427,8 +1448,25 @@ function ProgressiveLoadDemo() {
     let successCount = 0;
     let failCount = 0;
 
-    // Picsum API URL转换函数（业务逻辑）
-    const picsumUrlTransformer = (url, stage, stageIndex) => {
+    // URL转换函数（业务逻辑）
+    const urlTransformer = (url, stage, stageIndex) => {
+      // 处理国内图片服务（dummyimage.com）
+      if (url.includes('dummyimage.com')) {
+        // DummyImage.com 支持尺寸参数，直接返回带尺寸的 URL
+        if (stage.width != null && stage.height != null) {
+          // 提取原 URL 中的颜色和文字参数
+          const urlObj = new URL(url);
+          const pathParts = urlObj.pathname.split('/');
+          const color = pathParts[1]?.split('/')[0] || '4a90e2';
+          const text = urlObj.searchParams.get('text') || url.includes('text=') 
+            ? (url.includes('text=') ? decodeURIComponent(url.split('text=')[1].split('&')[0]) : 'Image')
+            : 'Image';
+          return `https://dummyimage.com/${stage.width}x${stage.height}/${color}/ffffff&text=${encodeURIComponent(text)}`;
+        }
+        return url; // 没有尺寸参数，返回原 URL
+      }
+      
+      // 处理 Picsum API
       if (!url.includes('picsum.photos')) {
         return null; // 不是Picsum URL，使用默认处理
       }
@@ -1466,11 +1504,12 @@ function ProgressiveLoadDemo() {
       return null; // 使用默认处理
     };
 
-    // Picsum API 错误处理函数（业务逻辑）
-    const picsumOnStageError = async (error, stageIndex, stageUrl, stage) => {
+    // 错误处理函数（业务逻辑）
+    const onStageError = async (error, stageIndex, stageUrl, stage) => {
       // 检查是否是404错误
       const is404 = error.message.includes('404') || error.message.includes('不存在');
       
+      // 只处理 Picsum API 的 404 错误
       if (!is404 || !stageUrl.includes('picsum.photos')) {
         return null; // 不是404或不是Picsum URL，不处理
       }
@@ -1505,23 +1544,26 @@ function ProgressiveLoadDemo() {
     };
 
     const results = await loadImagesProgressively(imageList, {
-      concurrency: 100, // 降低并发数，避免API限制（100张图片 × 3阶段 = 300个请求）
+      concurrency: 30, // 降低并发数，避免API限制（30张图片 × 3阶段 = 300个请求）
       timeout: 30000,
       priority: true, // 启用优先级
       retryOnError: true, // 启用重试
       maxRetries: 2, // 最大重试2次
+      enableCache: true, // 启用缓存（设置为 false 可禁用缓存）
       // 渐进式加载阶段：从模糊到清晰
-      // 注意：Picsum API 支持尺寸参数，但不支持 quality 等CDN优化参数
-      // 我们通过不同尺寸实现渐进式加载效果
+      // 注意：不同图片服务支持的参数不同
+      // - Picsum API: 支持尺寸参数，但不支持 quality 等CDN优化参数
+      // - Placeholder/DummyImage: 支持尺寸参数
+      // - 其他 CDN: 可能支持 quality、format 等参数
       stages: [
         { width: 50, height: 50 },   // 阶段1: 极小图（50x50）
         { width: 200, height: 200 },   // 阶段2: 小图（200x200）
         { width: null, height: null }    // 阶段3: 原图（不指定尺寸）
       ],
-      // 业务逻辑：Picsum API URL转换
-      urlTransformer: picsumUrlTransformer,
-      // 业务逻辑：Picsum API 404错误处理
-      onStageError: picsumOnStageError,
+      // 业务逻辑：URL转换（支持多种图片服务）
+      urlTransformer: urlTransformer,
+      // 业务逻辑：错误处理（主要处理 Picsum API 的 404 错误）
+      onStageError: onStageError,
       onProgress: (current, total, result) => {
         const percentage = ((current / total) * 100).toFixed(1);
         setProgress(parseFloat(percentage));
@@ -1570,7 +1612,13 @@ function ProgressiveLoadDemo() {
           });
         } else {
           failCount++;
-          // 显示错误占位符
+          // 检查是否是 404 错误（某些 Picsum ID 不存在是正常的）
+          const is404 = result.error && (
+            result.error.message && result.error.message.includes('404') ||
+            result.error.stageUrl && result.error.stageUrl.includes('picsum.photos')
+          );
+          
+          // 显示错误占位符（404 错误也显示，但可以有不同的样式）
           setImages(prev => {
             const newImages = [...prev];
             newImages[result.index] = {
@@ -1579,6 +1627,7 @@ function ProgressiveLoadDemo() {
               loaded: false,
               error: result.error,
               isComplete: false,
+              is404: is404, // 标记是否为 404 错误
             };
             return newImages;
           });
@@ -1616,11 +1665,30 @@ function ProgressiveLoadDemo() {
       <h3>渐进式加载示例（100张图片，模糊到清晰）</h3>
       <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
         🎨 新功能：每张图片从模糊逐渐变清晰（3阶段加载）。
-        先加载极小的模糊图（20px），然后中等质量（400px），最后加载原图。
-        支持高并发（默认10）、错误隔离、独立错误信息。
+        先加载极小的模糊图（50x50），然后中等质量（200x200），最后加载原图。
+        支持高并发、错误隔离、独立错误信息。
+        <br />
+        <strong>注意：</strong>Picsum 是国外服务，国内访问较慢。建议使用国内图片服务以获得更好的体验。
       </p>
 
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={useDomesticImages}
+            onChange={(e) => {
+              setUseDomesticImages(e.target.checked);
+              setImages([]);
+              setStats(null);
+              setHasAutoLoaded(false);
+            }}
+            disabled={loading}
+            style={{ cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: '14px' }}>
+            使用国内图片服务（更快，推荐）
+          </span>
+        </label>
         <button
           onClick={handleStartLoading}
           disabled={loading}
@@ -1744,18 +1812,22 @@ function ProgressiveLoadDemo() {
                     <div style={{
                       width: '100%',
                       height: '100%',
-                      backgroundColor: '#ffebee',
+                      backgroundColor: img.is404 ? '#fff3e0' : '#ffebee', // 404 错误使用不同的背景色
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#f5222d',
+                      color: img.is404 ? '#ff9800' : '#f5222d', // 404 错误使用橙色
                       fontSize: '12px',
                       padding: '5px',
                       textAlign: 'center'
                     }}>
-                      <div style={{ fontSize: '20px', marginBottom: '5px' }}>❌</div>
-                      <div style={{ fontSize: '10px' }}>加载失败</div>
+                      <div style={{ fontSize: '20px', marginBottom: '5px' }}>
+                        {img.is404 ? '⚠️' : '❌'}
+                      </div>
+                      <div style={{ fontSize: '10px' }}>
+                        {img.is404 ? '资源不存在' : '加载失败'}
+                      </div>
                     </div>
                   ) : (
                     <img
@@ -1819,7 +1891,7 @@ function ProgressiveLoadDemo() {
 
 // 简单的 Tabs 组件
 function Tabs({ children, tabs }) {
-  const [activeTab, setActiveTab] = useState(3); // 默认打开第4个Tab（渐进式加载示例）
+  const [activeTab, setActiveTab] = useState(0); // 默认打开第4个Tab（渐进式加载示例）
 
   return (
     <div>
@@ -1867,34 +1939,53 @@ function App() {
       <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}>
         {/* 第一页：LazyImage 组件示例 */}
         <div>
-          <h2>LazyImage 组件示例</h2>
-          <p style={{ color: '#666', marginBottom: '20px' }}>
-            展示 LazyImage 组件的懒加载和图片优化功能
-          </p>
 
-          <div style={{ marginBottom: '20px' }}>
-            <h3>懒加载示例</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <LazyImage
-                  key={i}
-                  src="https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg"
-                  alt={`懒加载图片 ${i + 1}`}
-                  width={200}
-                  height={200}
-                  rootMargin="50px"
-                  optimize={{
-                    width: 1376,
-                    quality: 90
-                  }}
-                  onOptimization={(info) => { }}
-                  onLoad={(event, optimizationInfo) => {
-                    // console.log(`图片 ${i + 1} 加载完成`);
-                  }}
-                  onClick={(event, imageInfo) => {
-                    // console.log(`图片 ${i + 1} 被点击`);
-                  }}
-                />
+          <div style={{ marginBottom: '40px' }}>
+            <h3>懒加载 + 渐进式加载示例</h3>
+            <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
+              🎨 新功能：结合懒加载和渐进式加载，图片从模糊逐渐变清晰，体验更丝滑。
+              先加载极小的模糊占位图，然后逐步加载更清晰的版本，最后加载原图。
+              <br />
+              <strong>参数说明：</strong>
+              <br />
+              • <code>progressive</code>: 是否启用渐进式加载（默认 false）
+              <br />
+              • <code>progressiveStages</code>: 渐进式加载阶段配置数组
+              <br />
+              • <code>progressiveTransitionDuration</code>: 过渡动画时间（毫秒，默认 300）
+              <br />
+              • <code>progressiveTimeout</code>: 每个阶段的加载超时时间（毫秒，默认 30000）
+              <br />
+              • <code>progressiveEnableCache</code>: 是否启用缓存（默认 true，设置为 false 可禁用缓存）
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div key={i} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '10px', backgroundColor: '#fff' }}>
+                  <LazyImage
+                    src="https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg"
+                    alt={`渐进式加载图片 ${i + 1}`}
+                    width="100%"
+                    height={300}
+                    rootMargin="50px"
+                    progressive={true}
+                    progressiveStages={[
+                      { width: 20, quality: 20, blur: 10 },   // 阶段1: 极速模糊图
+                      { width: 400, quality: 50, blur: 3 },   // 阶段2: 中等质量
+                      { width: null, quality: 80, blur: 0 }   // 阶段3: 最终质量（原图）
+                    ]}
+                    progressiveTransitionDuration={300}
+                    progressiveTimeout={30000}  // 每个阶段30秒超时（可根据网络情况调整）
+                    onProgressiveStageComplete={(stageIndex, stageUrl, stage) => {
+                      // console.log(`图片 ${i + 1} 阶段 ${stageIndex + 1} 完成`);
+                    }}
+                    onLoad={(event, optimizationInfo) => {
+                      // console.log(`图片 ${i + 1} 全部加载完成`);
+                    }}
+                  />
+                  <p style={{ marginTop: '10px', fontSize: '12px', color: '#999', textAlign: 'center' }}>
+                    图片 {i + 1} - 滚动查看渐进式加载效果
+                  </p>
+                </div>
               ))}
             </div>
           </div>

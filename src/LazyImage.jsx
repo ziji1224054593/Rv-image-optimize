@@ -6,8 +6,9 @@ import {
   compressImageInBrowser,
   dataURLToBlob,
   formatFileSize,
+  generateBlurPlaceholderUrl,
 } from '../lib/imageOptimize.js';
-import { loadImageWithCache, saveImageCache } from './imageCache.js';
+import { loadImageWithCache, loadImageProgressiveWithCache } from '../lib/imageCache.js';
 import './LazyImage.css';
 
 /**
@@ -31,10 +32,21 @@ import './LazyImage.css';
  * @param {boolean} props.showPlaceholderIcon - 是否显示占位符图标
  * @param {boolean} props.showErrorMessage - 是否显示错误信息
  * @param {string|null} props.errorSrc - 错误时的默认图片（可选，如果为null则不加载错误图片，直接显示错误占位符）
+ * @param {boolean} props.progressive - 是否启用渐进式加载（从模糊到清晰，默认false）
+ * @param {Array} props.progressiveStages - 渐进式加载阶段配置，例如：
+ *   [
+ *     { width: 20, quality: 20, blur: 10 },   // 阶段1: 极速模糊图
+ *     { width: 400, quality: 50, blur: 3 },   // 阶段2: 中等质量
+ *     { width: null, quality: 80, blur: 0 }   // 阶段3: 最终质量（原图）
+ *   ]
+ * @param {number} props.progressiveTransitionDuration - 渐进式加载过渡动画时间（毫秒，默认300）
+ * @param {number} props.progressiveTimeout - 渐进式加载每个阶段的超时时间（毫秒，默认30000）
+ * @param {boolean} props.progressiveEnableCache - 渐进式加载是否启用缓存（默认true）
  * @param {Function} props.onLoad - 加载成功回调 (event, optimizationInfo) - optimizationInfo包含优化信息
  * @param {Function} props.onOptimization - 优化完成回调 (optimizationInfo) - 专门用于接收优化信息
  * @param {Function} props.onError - 加载失败回调
  * @param {Function} props.onClick - 点击回调 (event, imageInfo) - imageInfo包含图片相关信息
+ * @param {Function} props.onProgressiveStageComplete - 渐进式加载阶段完成回调 (stageIndex, stageUrl, stage) => void
  */
 export default function LazyImage({
   src = '',
@@ -56,10 +68,20 @@ export default function LazyImage({
   showPlaceholderIcon = false,
   showErrorMessage = false,
   errorSrc = null, // 默认为 null，不加载错误图片，直接显示错误占位符
+  progressive = false, // 是否启用渐进式加载
+  progressiveStages = [
+    { width: 20, quality: 20, blur: 10 },   // 阶段1: 极速模糊图
+    { width: 400, quality: 50, blur: 3 },   // 阶段2: 中等质量
+    { width: null, quality: 80, blur: 0 }   // 阶段3: 最终质量（原图）
+  ],
+  progressiveTransitionDuration = 300, // 过渡动画时间（毫秒）
+  progressiveTimeout = 30000, // 渐进式加载每个阶段的超时时间（毫秒，默认30秒）
+  progressiveEnableCache = true, // 渐进式加载是否启用缓存（默认true）
   onLoad = null,
   onOptimization = null, // 优化完成回调
   onError = null,
   onClick = null,
+  onProgressiveStageComplete = null, // 渐进式加载阶段完成回调
 }) {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
@@ -74,6 +96,12 @@ export default function LazyImage({
   const [isCompressing, setIsCompressing] = useState(false);
   const [cachedBlobUrl, setCachedBlobUrl] = useState(null); // 缓存的 Blob URL
   const cachedBlobUrlRef = useRef(null); // 用于清理 Blob URL
+  const [progressiveStageIndex, setProgressiveStageIndex] = useState(-1); // 渐进式加载当前阶段索引
+  const [progressiveImageUrl, setProgressiveImageUrl] = useState(''); // 渐进式加载当前图片URL
+  const progressiveCancelRef = useRef(null); // 用于取消渐进式加载
+  const progressiveStageIndexRef = useRef(-1); // 用于同步跟踪当前阶段索引（避免状态更新延迟）
+  const progressiveLoadingRef = useRef(false); // 用于跟踪是否正在加载，避免重复启动
+  const progressiveStagesRef = useRef(null); // 保存 stages 配置，避免依赖项变化导致重复执行
 
   // 获取优化后的URL
   const getOptimizedUrl = (imageSrc) => {
@@ -96,6 +124,11 @@ export default function LazyImage({
   const optimizedSrc = useMemo(() => {
     if (!src) return '';
     
+    // 如果启用了渐进式加载，使用渐进式加载的URL
+    if (progressive && progressiveImageUrl) {
+      return progressiveImageUrl;
+    }
+    
     // 如果已经有浏览器端压缩的图片，优先使用
     if (compressedSrc) {
       return compressedSrc;
@@ -111,7 +144,7 @@ export default function LazyImage({
     }
     
     return getOptimizedUrl(src);
-  }, [src, isLoaded, lockedSrc, optimize, compressedSrc, cachedBlobUrl]);
+  }, [src, isLoaded, lockedSrc, optimize, compressedSrc, cachedBlobUrl, progressive, progressiveImageUrl]);
 
   // 初始化 Intersection Observer
   const initObserver = () => {
@@ -154,6 +187,18 @@ export default function LazyImage({
 
   // 处理图片加载成功
   const handleLoad = async (event) => {
+    // 如果是渐进式加载，需要特殊处理
+    if (progressive) {
+      // 渐进式加载时，只有在最后一个阶段完成时才设置 isLoaded
+      // 使用 ref 来获取最新的阶段索引，避免状态更新延迟导致的问题
+      const currentStageIndex = progressiveStageIndexRef.current;
+      if (currentStageIndex >= 0 && currentStageIndex < progressiveStages.length) {
+        // 渐进式加载的中间阶段，不设置 isLoaded，让 onStageComplete 和 onComplete 来控制
+        return;
+      }
+      // 如果 currentStageIndex >= progressiveStages.length，说明所有阶段已完成，可以设置 isLoaded
+    }
+    
     if (isLoaded) {
       return;
     }
@@ -390,9 +435,152 @@ export default function LazyImage({
     }
   };
 
-  // 监听 shouldLoad 变化，先检查缓存，如果CDN不支持优化，尝试浏览器端压缩
+  // 保存 stages 配置到 ref，避免依赖项变化导致重复执行
   useEffect(() => {
-    if (shouldLoad && !isLoaded && !hasError && !isLoading && !isCompressing && !cachedBlobUrl && src) {
+    progressiveStagesRef.current = progressiveStages;
+  }, [progressiveStages]);
+
+  // 渐进式加载的独立处理逻辑
+  // 使用 useRef 来跟踪是否已启动，避免重复执行
+  const progressiveInitRef = useRef(false);
+  const progressiveSrcRef = useRef(null); // 跟踪当前加载的 src
+  
+  useEffect(() => {
+    // 如果不是渐进式加载，重置标记
+    if (!progressive) {
+      progressiveInitRef.current = false;
+      progressiveSrcRef.current = null;
+      return;
+    }
+
+    // 如果 src 改变了，重置标记，允许重新加载
+    if (progressiveSrcRef.current !== src) {
+      progressiveInitRef.current = false;
+      progressiveSrcRef.current = src;
+    }
+
+    // 如果已经初始化过且 src 没变，不再重复执行
+    if (progressiveInitRef.current) {
+      return;
+    }
+
+    // 如果没有 src，直接返回
+    if (!src) {
+      return;
+    }
+
+    // 只有在 shouldLoad 为 true 时才启动加载
+    if (!shouldLoad) {
+      return;
+    }
+
+    // 标记已经初始化，防止重复执行
+    progressiveInitRef.current = true;
+    progressiveLoadingRef.current = true;
+    setIsLoading(true);
+    
+    // 每个组件实例独立管理自己的渐进式加载状态
+    let isCancelled = false;
+    const currentSrcRef = src; // 保存当前的 src，避免闭包问题
+    const currentStages = progressiveStagesRef.current || progressiveStages; // 使用 ref 中的 stages
+    
+    progressiveCancelRef.current = () => {
+      isCancelled = true;
+      progressiveLoadingRef.current = false;
+      progressiveInitRef.current = false;
+    };
+    
+    // 使用封装的渐进式加载缓存函数
+    loadImageProgressiveWithCache(currentSrcRef, {
+      stages: currentStages,
+      timeout: progressiveTimeout,
+      enableCache: progressiveEnableCache, // 传递缓存开关
+      onStageComplete: (stageIndex, stageUrl, stage) => {
+        // 只检查是否已取消或 src 已改变
+        if (isCancelled || progressiveSrcRef.current !== currentSrcRef) return;
+        
+        // stageIndex 是从 0 开始的，表示当前完成的阶段索引
+        // 设置当前完成的阶段索引（stageIndex + 1），这样图片才能正确显示
+        const newStageIndex = stageIndex + 1;
+        
+        // 使用 requestAnimationFrame 确保状态更新不会阻塞后续阶段的加载
+        requestAnimationFrame(() => {
+          if (!isCancelled && progressiveSrcRef.current === currentSrcRef) {
+            setProgressiveStageIndex(newStageIndex);
+            progressiveStageIndexRef.current = newStageIndex;
+            setProgressiveImageUrl(stageUrl);
+            
+            if (onProgressiveStageComplete) {
+              onProgressiveStageComplete(stageIndex, stageUrl, stage);
+            }
+          }
+        });
+      },
+      onComplete: (finalUrl) => {
+        // 只检查是否已取消或 src 已改变
+        if (isCancelled || progressiveSrcRef.current !== currentSrcRef) return;
+        
+        // 使用 requestAnimationFrame 确保状态更新不会阻塞
+        requestAnimationFrame(() => {
+          if (!isCancelled && progressiveSrcRef.current === currentSrcRef) {
+            setIsLoading(false);
+            setProgressiveImageUrl(finalUrl);
+            progressiveLoadingRef.current = false;
+            // 渐进式加载完成后，设置最后一个阶段索引
+            const finalStageIndex = currentStages.length;
+            setProgressiveStageIndex(finalStageIndex);
+            progressiveStageIndexRef.current = finalStageIndex;
+            // 渐进式加载完成后，图片的 src 会更新为 finalUrl
+            // 这会触发 img 元素的 onLoad 事件，从而调用 handleLoad
+            // 此时 progressiveStageIndexRef.current >= currentStages.length，handleLoad 会正常设置 isLoaded
+          }
+        });
+      },
+      onError: (error, stageIndex) => {
+        // 只检查是否已取消或 src 已改变
+        if (isCancelled || progressiveSrcRef.current !== currentSrcRef) return;
+        
+        console.warn(`[渐进式加载 ${currentSrcRef.substring(0, 20)}...] 阶段 ${stageIndex + 1} 失败:`, error.message || error);
+        setIsLoading(false);
+        progressiveLoadingRef.current = false;
+        progressiveInitRef.current = false;
+        // 渐进式加载失败，回退到普通加载
+        setProgressiveImageUrl('');
+        setProgressiveStageIndex(-1);
+        progressiveStageIndexRef.current = -1;
+        setIsLoading(true);
+      },
+    }).catch((error) => {
+      // 处理未捕获的错误
+      if (!isCancelled && progressiveSrcRef.current === currentSrcRef) {
+        console.error(`[渐进式加载 ${currentSrcRef.substring(0, 20)}...] 加载过程出错:`, error);
+        setIsLoading(false);
+        progressiveLoadingRef.current = false;
+        progressiveInitRef.current = false;
+        setProgressiveImageUrl('');
+        setProgressiveStageIndex(-1);
+        progressiveStageIndexRef.current = -1;
+      }
+    });
+    
+    return () => {
+      // 只有在组件卸载或 src 改变时才取消
+      isCancelled = true;
+      progressiveLoadingRef.current = false;
+      progressiveInitRef.current = false;
+    };
+  }, [progressive, shouldLoad, src, progressiveTimeout, progressiveEnableCache]);
+  
+  // 监听 shouldLoad 变化，先检查缓存，如果CDN不支持优化，尝试浏览器端压缩（普通加载流程）
+  useEffect(() => {
+    // 如果是渐进式加载，跳过普通加载流程
+    if (progressive) {
+      return;
+    }
+    
+    // 普通加载流程（非渐进式）
+    if (!progressive && shouldLoad && !isLoaded && !hasError && !isLoading && !isCompressing && !cachedBlobUrl && !progressiveImageUrl && src) {
+      // 普通加载流程
       // 先尝试从缓存加载
       const loadFromCache = async () => {
         try {
@@ -463,6 +651,12 @@ export default function LazyImage({
       cachedBlobUrlRef.current = null;
     }
     
+    // 取消渐进式加载
+    if (progressiveCancelRef.current) {
+      progressiveCancelRef.current();
+      progressiveCancelRef.current = null;
+    }
+    
     setIsLoaded(false);
     setHasError(false);
     setIsLoading(false);
@@ -470,6 +664,22 @@ export default function LazyImage({
     setCompressedSrc(null); // 重置压缩图片
     setIsCompressing(false);
     setCachedBlobUrl(null); // 重置缓存 Blob URL
+    // 取消渐进式加载
+    if (progressiveCancelRef.current) {
+      progressiveCancelRef.current();
+      progressiveCancelRef.current = null;
+    }
+    // 取消渐进式加载
+    if (progressiveCancelRef.current) {
+      progressiveCancelRef.current();
+      progressiveCancelRef.current = null;
+    }
+    setProgressiveImageUrl(''); // 重置渐进式加载URL
+    setProgressiveStageIndex(-1); // 重置渐进式加载阶段
+    progressiveStageIndexRef.current = -1; // 重置 ref
+    progressiveLoadingRef.current = false; // 重置加载标记
+    progressiveInitRef.current = false; // 重置初始化标记
+    progressiveSrcRef.current = null; // 重置 src 跟踪
     optimizationInfoRef.current = null; // 重置优化信息
     
     if (immediate) {
@@ -497,6 +707,11 @@ export default function LazyImage({
         URL.revokeObjectURL(cachedBlobUrlRef.current);
         cachedBlobUrlRef.current = null;
       }
+      // 取消渐进式加载
+      if (progressiveCancelRef.current) {
+        progressiveCancelRef.current();
+        progressiveCancelRef.current = null;
+      }
     };
   }, []);
 
@@ -512,7 +727,7 @@ export default function LazyImage({
       style={containerStyle}
     >
       {/* 占位符 */}
-      {!isLoaded && !hasError && !isLoading && !cachedBlobUrl && (
+      {!isLoaded && !hasError && !isLoading && !cachedBlobUrl && !progressiveImageUrl && (
         <div className="image-optimize-placeholder">
           {showPlaceholderIcon && (
             <svg
@@ -533,7 +748,7 @@ export default function LazyImage({
       )}
 
       {/* 加载中 */}
-      {(isLoading || isCompressing) && !hasError && !cachedBlobUrl && (
+      {(isLoading || isCompressing) && !hasError && !cachedBlobUrl && !progressiveImageUrl && (
         <div className="image-optimize-loading">
           <svg
             className="image-optimize-loading-icon"
@@ -571,7 +786,25 @@ export default function LazyImage({
           data-id={dataId}
           className={`image-optimize-image ${imageClassName}`.trim()}
           style={{
-            display: isLoaded || cachedBlobUrl || (!hasError && optimizedSrc) ? 'block' : 'none',
+            display: isLoaded || cachedBlobUrl || progressiveImageUrl || (!hasError && optimizedSrc) ? 'block' : 'none',
+            // 渐进式加载的过渡效果
+            transition: progressive 
+              ? `opacity ${progressiveTransitionDuration}ms ease-in-out, filter ${progressiveTransitionDuration}ms ease-in-out`
+              : undefined,
+            opacity: progressive && progressiveStageIndex >= 0 
+              ? 1 
+              : (isLoaded || cachedBlobUrl ? 1 : 0),
+            // 渐进式加载的模糊效果
+            // progressiveStageIndex: -1(初始) -> 1(第1阶段完成) -> 2(第2阶段完成) -> 3(第3阶段完成/全部完成)
+            filter: progressive 
+              ? (progressiveStageIndex === 1 
+                  ? 'blur(10px)' 
+                  : progressiveStageIndex === 2 
+                    ? 'blur(3px)' 
+                    : progressiveStageIndex >= 3
+                      ? 'blur(0px)'
+                      : 'blur(10px)') // 初始状态也显示模糊
+              : undefined,
             ...imageStyle,
           }}
           onLoad={handleLoad}

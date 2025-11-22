@@ -25,6 +25,7 @@ v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格�
 - 🔧 **错误与超时控制**：内置超时机制（默认30秒）、重试选项和回调函数（onError、onStageComplete），确保加载可靠，并提供详细错误信息。
 - 📱 **跨框架兼容**：React 中使用 ProgressiveImage 组件直接集成；Vue2/Vue3 通过工具函数（如 loadImageProgressive）手动实现，支持响应式和自定义 UI。
 - 📊 **进度与回调支持**：实时进度回调（onProgress）、阶段完成通知和整体完成事件，便于集成 UI 更新，如进度条或动态显示。
+- 💾 **IndexedDB 缓存**：已加载的图片自动缓存到 IndexedDB，下次访问时直接从缓存加载，大幅提升加载速度，减少网络请求。支持缓存开关控制。
 
 
 ### 插件预览地址 
@@ -42,6 +43,19 @@ v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格�
 ```bash
 npm install rv-image-optimize
 ```
+
+### 文件引用说明
+
+当您使用 `import { LazyImage } from 'rv-image-optimize'` 时：
+
+- **ES 模块环境**（现代打包工具如 Vite、Webpack 5+）：自动使用 `dist/image-optimize.es.js`
+- **CommonJS 环境**（Node.js 或旧版 Webpack）：使用 `dist/image-optimize.cjs.js`
+- **浏览器直接使用**：使用 `dist/image-optimize.umd.js`
+
+当您使用 `import 'rv-image-optimize/styles'` 时：
+- 自动引用 `dist/style.css` 样式文件
+
+**注意**：所有引用都指向 `dist/` 目录中构建后的文件，这些文件已经过优化和打包，包含了所有必要的依赖（除了 React）。
 
 ### 基础使用
 
@@ -71,7 +85,7 @@ function App() {
 }
 ```
 
-#### 2. 使用工具函数
+#### 2. 使用工具函数（从主入口导入）
 
 ```javascript
 import { 
@@ -106,6 +120,59 @@ const comparison = await compareImageSizes(
 );
 console.log(comparison.savedPercentage); // 节省比例
 ```
+
+#### 3. 按需导入（推荐，减少打包体积）
+
+如果您只需要部分功能，可以按需导入：
+
+```javascript
+// 方式1：通过 exports 路径导入（推荐）
+import { optimizeImageUrl } from 'rv-image-optimize/utils';
+import { compressImage } from 'rv-image-optimize/lossless';
+import ProgressiveImage from 'rv-image-optimize/ProgressiveImage';
+
+// 方式2：直接从 lib 或 src 导入（需要支持 ES 模块）
+import { optimizeImageUrl } from 'rv-image-optimize/lib/imageOptimize.js';
+import { getImageCache } from 'rv-image-optimize/lib/imageCache.js';
+import LazyImage from 'rv-image-optimize/src/LazyImage.jsx';
+import ProgressiveImage from 'rv-image-optimize/src/ProgressiveImage.jsx';
+```
+
+**可用的按需导入路径：**
+
+| 导入路径 | 说明 | 包含内容 |
+|---------|------|---------|
+| `rv-image-optimize/utils` | 图片优化工具函数 | `optimizeImageUrl`, `loadImageProgressive`, `loadImagesProgressively` 等 |
+| `rv-image-optimize/lossless` | 无损压缩工具 | `compressImage`, `compressImages` 等 |
+| `rv-image-optimize/cache` | 缓存工具库 | `getImageCache`, `saveImageCache`, `loadImageWithCache` 等 |
+| `rv-image-optimize/LazyImage` | LazyImage 组件 | `LazyImage` 组件（需要 React） |
+| `rv-image-optimize/ProgressiveImage` | 渐进式加载组件 | `ProgressiveImage` 组件（需要 React） |
+| `rv-image-optimize/lib/imageOptimize.js` | 完整工具库 | 所有图片优化相关函数 |
+| `rv-image-optimize/lib/imageCache.js` | 缓存工具库 | IndexedDB 缓存相关函数 |
+| `rv-image-optimize/lib/losslessCompress.js` | 无损压缩库 | 完整无损压缩功能 |
+| `rv-image-optimize/src/LazyImage.jsx` | LazyImage 组件源码 | LazyImage 组件（需要 React） |
+| `rv-image-optimize/src/ProgressiveImage.jsx` | ProgressiveImage 组件源码 | ProgressiveImage 组件（需要 React） |
+
+**按需导入示例：**
+
+```javascript
+// ✅ 推荐：使用 exports 路径（更稳定）
+import { optimizeImageUrl } from 'rv-image-optimize/utils';
+import { compressImage } from 'rv-image-optimize/lossless';
+import { getImageCache } from 'rv-image-optimize/cache';
+import LazyImage from 'rv-image-optimize/LazyImage';
+import ProgressiveImage from 'rv-image-optimize/ProgressiveImage';
+
+// ✅ 也可以：直接从 lib 或 src 导入（需要支持 ES 模块）
+import { optimizeImageUrl } from 'rv-image-optimize/lib/imageOptimize.js';
+import { getImageCache } from 'rv-image-optimize/lib/imageCache.js';
+import LazyImage from 'rv-image-optimize/src/LazyImage.jsx';
+```
+
+**注意：**
+- 使用 `lib/` 或 `src/` 直接导入时，需要确保您的打包工具支持 ES 模块
+- 如果使用 JSX 文件（`.jsx`），需要配置 React 和 JSX 转换
+- 推荐使用 `exports` 路径（如 `rv-image-optimize/utils`），更稳定可靠
 
 ### Vue3 / Vue2 项目使用
 

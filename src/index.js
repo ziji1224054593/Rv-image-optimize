@@ -39,7 +39,7 @@ export {
   getImageCacheStats,
   loadImageWithCache,
   clearImageCache,
-} from './imageCache.js';
+} from '../lib/imageCache.js';
 
 // 导入样式（需要在构建时处理）
 import './LazyImage.css';

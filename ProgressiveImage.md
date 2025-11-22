@@ -11,6 +11,7 @@
 - 🔧 **错误与超时控制**：内置超时机制（默认30秒）、重试选项和回调函数（onError、onStageComplete），确保加载可靠，并提供详细错误信息。
 - 📱 **跨框架兼容**：React 中使用 ProgressiveImage 组件直接集成；Vue2/Vue3 通过工具函数（如 loadImageProgressive）手动实现，支持响应式和自定义 UI。
 - 📊 **进度与回调支持**：实时进度回调（onProgress）、阶段完成通知和整体完成事件，便于集成 UI 更新，如进度条或动态显示。
+- 💾 **IndexedDB 缓存**：已加载的图片自动缓存到 IndexedDB，下次访问时直接从缓存加载，大幅提升加载速度，减少网络请求。支持缓存开关控制（`enableCache` 参数，默认 `true`）。
 
 在 React 中，通过 `ProgressiveImage` 组件实现；在 Vue 中，使用工具函数 `loadImageProgressive` 手动实现。
 
@@ -45,7 +46,8 @@ import 'rv-image-optimize/styles'; // 导入样式（可选，自定义样式见
 | `onStageComplete` | `Function` | `null` | 阶段完成回调：`(stageIndex, stageUrl, stage) => void`。 |
 | `onComplete` | `Function` | `null` | 全部完成回调：`(finalUrl) => void`。 |
 | `onError` | `Function` | `null` | 错误回调：`(error, stageIndex) => void`。 |
-| `onLoad` | `Function` | `null` | 最终加载完成回调：`(event) => void`。
+| `onLoad` | `Function` | `null` | 最终加载完成回调：`(event) => void`。 |
+| `enableCache` | `boolean` | `true` | 是否启用 IndexedDB 缓存。启用后，已加载的图片会被缓存，下次访问时直接从缓存加载。
 
 **stages 配置对象说明**（每个阶段）：
 | 参数 | 类型 | 默认值 | 说明 |
@@ -84,6 +86,7 @@ function App() {
       onError={(error, stageIndex) => {
         console.error('加载失败', error);
       }}
+      enableCache={true}  // 启用缓存（默认 true）
     />
   );
 }
@@ -106,7 +109,8 @@ import { loadImageProgressive, generateBlurPlaceholderUrl } from 'rv-image-optim
 | `options.timeout` | `number` | `30000` | 每个阶段超时（毫秒）。 |
 | `options.onStageComplete` | `Function` | `null` | 阶段完成回调：`(stageIndex, stageUrl, stage) => void`。 |
 | `options.onComplete` | `Function` | `null` | 全部完成回调：`(finalUrl) => void`。 |
-| `options.onError` | `Function` | `null` | 错误回调：`(error, stageIndex) => void`。
+| `options.onError` | `Function` | `null` | 错误回调：`(error, stageIndex) => void`。 |
+| `options.enableCache` | `boolean` | `true` | 是否启用 IndexedDB 缓存。启用后，已加载的图片会被缓存，下次访问时直接从缓存加载。
 
 ### Vue3 使用示例（Composition API）
 ```vue
@@ -155,7 +159,8 @@ onMounted(async () => {
       onError: (error, stageIndex) => {
         hasError.value = true;
         errorMessage.value = error.message;
-      }
+      },
+      enableCache: true  // 启用缓存（默认 true）
     });
   } catch (error) {
     hasError.value = true;
@@ -221,7 +226,8 @@ export default {
       onError: (error, stageIndex) => {
         this.hasError = true;
         this.errorMessage = error.message;
-      }
+      },
+      enableCache: true  // 启用缓存（默认 true）
     }).catch(error => {
       this.hasError = true;
       this.errorMessage = error.message;
@@ -281,6 +287,7 @@ loadImagesProgressively(
 | `options.onProgress` | `Function` | `null` | 整体进度回调。 |
 | `options.onItemComplete` | `Function` | `null` | 单个图片完成回调。 |
 | `options.onItemStageComplete` | `Function` | `null` | 单个图片阶段完成回调。 |
+| `options.enableCache` | `boolean` | `true` | 是否启用 IndexedDB 缓存。启用后，已加载的图片会被缓存，下次访问时直接从缓存加载。
 
 ### 返回值 (LoadResult)
 ```typescript
@@ -371,5 +378,102 @@ onMounted(async () => {
 });
 </script>
 ```
+
+## IndexedDB 缓存功能
+
+渐进式加载支持 IndexedDB 缓存，可以大幅提升图片加载速度，减少网络请求。
+
+### 缓存机制
+
+- **自动缓存**：图片加载完成后，会自动将图片数据保存到 IndexedDB
+- **自动读取**：下次访问相同 URL 时，优先从缓存读取，瞬间显示
+- **缓存键**：使用最终优化后的 URL 作为缓存键，确保缓存准确性
+- **Blob URL**：从缓存读取的图片会创建 Blob URL，可以直接用于 `<img>` 标签
+
+### 使用方式
+
+#### React 组件
+
+```jsx
+<ProgressiveImage
+  src="https://example.com/image.jpg"
+  enableCache={true}  // 启用缓存（默认 true）
+  // ... 其他配置
+/>
+```
+
+#### LazyImage 组件（支持渐进式加载 + 缓存）
+
+```jsx
+<LazyImage
+  src="https://example.com/image.jpg"
+  progressive={true}
+  progressiveEnableCache={true}  // 启用缓存（默认 true）
+  progressiveStages={[
+    { width: 50, height: 50 },
+    { width: 200, height: 200 },
+    { width: null, height: null }
+  ]}
+  // ... 其他配置
+/>
+```
+
+#### 工具函数
+
+```javascript
+import { loadImageProgressive, loadImagesProgressively } from 'rv-image-optimize';
+
+// 单个图片
+await loadImageProgressive(url, {
+  enableCache: true,  // 启用缓存（默认 true）
+  // ... 其他配置
+});
+
+// 批量图片
+await loadImagesProgressively(imageList, {
+  enableCache: true,  // 启用缓存（默认 true）
+  // ... 其他配置
+});
+```
+
+### 缓存管理
+
+如果需要手动管理缓存，可以使用以下工具函数：
+
+```javascript
+import { 
+  getImageCache, 
+  saveImageCache, 
+  deleteImageCache,
+  cleanExpiredImageCache 
+} from 'rv-image-optimize';
+
+// 获取缓存
+const cached = await getImageCache(url);
+
+// 保存缓存（通常不需要手动调用，加载函数会自动保存）
+await saveImageCache(url, imageData, mimeType);
+
+// 删除缓存
+await deleteImageCache(url);
+
+// 清理过期缓存（默认 7 天过期）
+await cleanExpiredImageCache();
+```
+
+### 注意事项
+
+1. **缓存大小**：IndexedDB 有存储限制（通常 50MB-1GB），建议定期清理过期缓存
+2. **缓存键**：使用最终优化后的 URL 作为缓存键，确保不同优化参数的图片不会互相覆盖
+3. **Blob URL**：从缓存读取的图片会创建 Blob URL，浏览器会自动管理这些 URL 的生命周期
+4. **隐私模式**：在隐私模式下，IndexedDB 可能不可用，会自动降级为网络加载
+5. **跨域问题**：缓存功能需要图片支持 CORS，否则无法保存到 IndexedDB
+
+### 性能优势
+
+- **首次加载**：正常网络加载，并保存到缓存
+- **二次加载**：从缓存读取，加载速度提升 10-100 倍
+- **减少流量**：避免重复下载相同图片，节省用户流量
+- **离线支持**：已缓存的图片在离线状态下也能正常显示
 
 如果您有其他自定义需求，请提供更多细节！

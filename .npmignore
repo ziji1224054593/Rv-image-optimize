@@ -1,7 +1,28 @@
+# 开发依赖
 node_modules/
 .vite
+
+# 开发示例和测试
 example/
+dist-static/
+dist.zip
+index.html
+index.js
+
+# 构建配置（用户不需要）
+vite.config.js
+package-lock.json
+
+# 开发工具文件
 *.log
 .DS_Store
 .git
 .gitignore
+.editorconfig
+.eslintrc*
+.prettierrc*
+
+# 临时文件
+*.tmp
+*.temp
+.cache
