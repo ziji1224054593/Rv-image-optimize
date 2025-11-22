@@ -176,13 +176,56 @@ import LazyImage from 'rv-image-optimize/src/LazyImage.jsx';
 
 ### Vue3 / Vue2 项目使用
 
-> **注意**：`LazyImage` 组件是 React 组件，无法直接在 Vue 项目中使用。Vue 项目主要使用工具函数来优化图片 URL，然后配合 Vue 的 `<img>` 标签或自行实现懒加载功能。
+> **⚠️ 重要提示**：
+> - `LazyImage` 和 `ProgressiveImage` 是 **React 组件**，**无法直接在 Vue 项目中使用**
+> - Vue 项目应该使用**工具函数**来优化图片 URL，然后配合 Vue 的 `<img>` 标签或自行实现懒加载功能
+> - 如果遇到导入错误，请确保只导入工具函数，不要导入 React 组件
+
+#### ⚠️ 常见错误和解决方案
+
+**错误1：尝试导入 React 组件**
+```javascript
+// ❌ 错误：Vue 中不能使用 React 组件
+import { LazyImage, ProgressiveImage } from 'rv-image-optimize';
+
+// ✅ 正确：只导入工具函数
+import { optimizeImageUrl, loadImageProgressive } from 'rv-image-optimize';
+```
+
+**错误2：旧版本导入方式（v1.x）**
+```javascript
+// ❌ 旧版本可能不支持这种导入方式
+import LazyImage from 'rv-image-optimize/LazyImage';
+
+// ✅ 新版本（v2.x+）使用工具函数
+import { optimizeImageUrl } from 'rv-image-optimize';
+// 或按需导入
+import { optimizeImageUrl } from 'rv-image-optimize/utils';
+```
+
+**错误3：ES 模块兼容性问题**
+如果遇到 `Cannot find module` 或 `Module not found` 错误：
+```javascript
+// ✅ 方式1：使用默认导入（推荐）
+import { optimizeImageUrl } from 'rv-image-optimize';
+
+// ✅ 方式2：使用 exports 路径
+import { optimizeImageUrl } from 'rv-image-optimize/utils';
+
+// ✅ 方式3：如果以上都不行，尝试直接导入 lib
+import { optimizeImageUrl } from 'rv-image-optimize/lib/imageOptimize.js';
+```
 
 #### 1. 安装依赖
 
 ```bash
 npm install rv-image-optimize
 ```
+
+**版本要求：**
+- 推荐使用最新版本（v2.1.1+）
+- 如果使用旧版本（v1.x），请升级到最新版本以获得更好的兼容性
+- 检查版本：`npm list rv-image-optimize`
 
 #### 2. Vue3 使用示例（Composition API）
 
@@ -414,6 +457,8 @@ const getOptimizedUrl = (src) => {
 
 #### 7. Vue 中实现懒加载（使用 vue-lazyload 或自定义）
 
+> **注意**：工具函数本身不支持 `rootMargin` 参数。`rootMargin` 是 IntersectionObserver 的参数，需要在 Vue 中自己实现 IntersectionObserver 时使用。
+
 如果需要懒加载功能，可以配合第三方库使用：
 
 ```bash
@@ -454,7 +499,8 @@ const optimizedUrl = computed(() => {
   });
 });
 
-// 使用 IntersectionObserver 实现懒加载
+// 使用 IntersectionObserver 实现懒加载（支持 rootMargin）
+// 注意：工具函数本身不支持 rootMargin，需要在 IntersectionObserver 中使用
 onMounted(() => {
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -463,7 +509,9 @@ onMounted(() => {
         observer.disconnect();
       }
     });
-  }, { rootMargin: '50px' });
+  }, { 
+    rootMargin: '50px'  // 提前 50px 开始加载，可以自定义
+  });
   
   const imgContainer = document.querySelector('.image-container');
   if (imgContainer) {
@@ -733,6 +781,80 @@ const imageConfig = {
 
 ### 常见问题
 
+#### Q: Vue3 中导入报错怎么办？
+
+**问题描述：** 在 Vue3 项目中使用 `rv-image-optimize` 时遇到导入错误。
+
+**可能的原因和解决方案：**
+
+1. **错误导入 React 组件**
+   ```javascript
+   // ❌ 错误
+   import { LazyImage, ProgressiveImage } from 'rv-image-optimize';
+   
+   // ✅ 正确：只导入工具函数
+   import { optimizeImageUrl, loadImageProgressive } from 'rv-image-optimize';
+   ```
+
+2. **旧版本兼容性问题**
+   ```bash
+   # 检查当前版本
+   npm list rv-image-optimize
+   
+   # 升级到最新版本
+   npm install rv-image-optimize@latest
+   ```
+
+3. **ES 模块导入问题**
+   ```javascript
+   // 如果默认导入失败，尝试以下方式：
+   
+   // 方式1：使用 exports 路径
+   import { optimizeImageUrl } from 'rv-image-optimize/utils';
+   
+   // 方式2：直接导入 lib
+   import { optimizeImageUrl } from 'rv-image-optimize/lib/imageOptimize.js';
+   ```
+
+4. **打包工具配置问题**
+   - 确保使用支持 ES 模块的打包工具（Vite、Webpack 5+）
+   - 检查 `package.json` 中是否有 `"type": "module"` 配置
+   - 如果使用 Webpack，确保配置了正确的解析规则
+
+5. **TypeScript 类型错误**
+   ```typescript
+   // 如果使用 TypeScript，可能需要添加类型声明
+   import type { OptimizeOptions } from 'rv-image-optimize';
+   ```
+
+**完整的 Vue3 使用示例：**
+```vue
+<script setup>
+import { ref, computed } from 'vue';
+// ✅ 只导入工具函数，不要导入 React 组件
+import { optimizeImageUrl, loadImageProgressive } from 'rv-image-optimize';
+
+const imageUrl = ref('https://example.com/image.jpg');
+const optimizedUrl = computed(() => {
+  return optimizeImageUrl(imageUrl.value, {
+    width: 800,
+    quality: 85,
+    autoFormat: true
+  });
+});
+</script>
+
+<template>
+  <img :src="optimizedUrl" alt="优化后的图片" />
+</template>
+```
+
+如果以上方法都无法解决，请提供以下信息以便排查：
+- Vue 版本：`npm list vue`
+- rv-image-optimize 版本：`npm list rv-image-optimize`
+- 打包工具和版本（Vite/Webpack）
+- 完整的错误信息
+
 #### Q: 为什么图片还是模糊？
 A: 检查以下几点：
 1. 是否设置了 `compressionLevel > 0`？设置为 0
@@ -745,6 +867,50 @@ A: 检查以下几点：
 1. 是否设置了 `immediate={true}`？设置为 false 或不设置
 2. 浏览器是否支持 IntersectionObserver？现代浏览器都支持
 3. 图片是否在初始视口内？使用 `rootMargin` 控制提前加载距离
+
+#### Q: Vue 中如何使用 rootMargin？
+A: 工具函数本身不支持 `rootMargin`，需要在 Vue 中自己实现 IntersectionObserver 时使用：
+
+```vue
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { optimizeImageUrl } from 'rv-image-optimize';
+
+const imageUrl = ref('https://example.com/image.jpg');
+const shouldLoad = ref(false);
+
+const optimizedUrl = computed(() => {
+  return optimizeImageUrl(imageUrl.value, { width: 800, quality: 85 });
+});
+
+onMounted(() => {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        shouldLoad.value = true;
+        observer.disconnect();
+      }
+    });
+  }, { 
+    rootMargin: '50px'  // 在这里使用 rootMargin，提前 50px 开始加载
+  });
+  
+  const imgElement = document.querySelector('.lazy-image');
+  if (imgElement) {
+    observer.observe(imgElement);
+  }
+});
+</script>
+
+<template>
+  <img 
+    v-if="shouldLoad"
+    :src="optimizedUrl" 
+    alt="懒加载图片"
+    class="lazy-image"
+  />
+</template>
+```
 
 #### Q: 浏览器端压缩很慢？
 A: 优化建议：

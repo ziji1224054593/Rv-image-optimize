@@ -381,7 +381,7 @@ export default function LazyImage({
     
     // 如果当前加载的是优化后的URL，且与原始URL不同，先尝试加载原始URL
     if (currentSrc === optimizedUrl && optimizedUrl !== src) {
-      console.log('优化URL加载失败，尝试原始URL:', src);
+      // console.log('优化URL加载失败，尝试原始URL:', src);
       event.target.src = src;
       return;
     }
@@ -390,13 +390,13 @@ export default function LazyImage({
     if (currentSrc === src || optimizedUrl === src) {
       // 如果指定了 errorSrc，尝试加载错误图片
       if (errorSrc && currentSrc !== errorSrc) {
-        console.log('原始URL加载失败，尝试加载错误图片:', errorSrc);
+        // console.log('原始URL加载失败，尝试加载错误图片:', errorSrc);
         event.target.src = errorSrc;
         return;
       }
       
       // 如果没有指定 errorSrc 或错误图片也加载失败，直接显示错误占位符
-      console.log('图片加载失败，显示错误占位符');
+      // console.log('图片加载失败，显示错误占位符');
       setHasError(true);
       setIsLoading(false);
       
