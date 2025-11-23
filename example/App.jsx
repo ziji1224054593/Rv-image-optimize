@@ -1318,12 +1318,12 @@ function ProgressiveLoadDemo() {
   const [useDomesticImages, setUseDomesticImages] = useState(true); // 默认使用国内图片
   const [clearingCache, setClearingCache] = useState(false); // 清理缓存中状态
 
-  // 生成100张不同的真实图片URL
+  // 生成1000张不同的真实图片URL
   const generateImageUrls = () => {
     if (useDomesticImages) {
       // 使用国内可访问的图片服务
       // 只使用 DummyImage.com（国内访问较快且稳定）
-      return Array.from({ length: 100 }, (_, i) => {
+      return Array.from({ length: 1000 }, (_, i) => {
         const imageId = i + 1;
         // 使用不同的颜色和文字生成不同的图片
         const colors = [
@@ -1618,7 +1618,7 @@ function ProgressiveLoadDemo() {
       borderRadius: '8px',
       backgroundColor: '#f9f9f9'
     }}>
-      <h3>渐进式加载示例（100张图片，模糊到清晰）</h3>
+      <h3>渐进式加载示例（1000张图片，模糊到清晰）</h3>
       <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
         🎨 新功能：每张图片从模糊逐渐变清晰（3阶段加载）。
         先加载极小的模糊图（50x50），然后中等质量（200x200），最后加载原图。
@@ -1659,7 +1659,7 @@ function ProgressiveLoadDemo() {
             fontWeight: 'bold'
           }}
         >
-          {loading ? '加载中...' : '开始加载100张图片'}
+          {loading ? '加载中...' : '开始加载1000张图片'}
         </button>
         <button
           onClick={handleClearCache}
@@ -1689,7 +1689,7 @@ function ProgressiveLoadDemo() {
             fontSize: '14px'
           }}>
             <span>加载进度: {progress.toFixed(1)}%</span>
-            <span>{images.filter(img => img && img.loaded).length} / 100 已加载</span>
+            <span>{images.filter(img => img && img.loaded).length} / 1000 已加载</span>
           </div>
           <div style={{
             width: '100%',
@@ -1908,7 +1908,8 @@ function App() {
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <h1 style={{ marginBottom: '30px' }}>图片优化工具演示</h1>
 
-      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}>
+      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}>
+      {/* <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}> */}
         {/* 第一页：LazyImage 组件示例 */}
         <div>
 
@@ -1931,7 +1932,7 @@ function App() {
               • <code>progressiveEnableCache</code>: 是否启用缓存（默认 true，设置为 false 可禁用缓存）
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-              {Array.from({ length: 20 }).map((_, i) => (
+              {Array.from({ length: 200 }).map((_, i) => (
                 <div key={i} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '10px', backgroundColor: '#fff' }}>
                   <LazyImage
                     src="https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg"
