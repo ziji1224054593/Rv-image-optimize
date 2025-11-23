@@ -49,7 +49,7 @@ export default defineConfig(({ command, mode }) => {
     };
   }
   
-  // 构建模式：库模式（npm 包）
+  // 构建模式：库模式（npm 包）- 完整版本（包含 React 组件）
   return {
     plugins: [react()],
     build: {

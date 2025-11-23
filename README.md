@@ -13,6 +13,8 @@
 
 > **微前端指南**：如果您使用了微前端架构，请参考文档详情。详情请查看 [微前端指南](#微前端使用指南)
 
+> **Vue 项目使用**：如果您在 Vue3/Vue2 项目中使用，**必须使用 `utils-only` 入口**，避免导入 React 组件导致错误。详情请查看 [Vue3 / Vue2 项目使用](#vue3--vue2-项目使用) 和 [VUE_USAGE.md](./VUE_USAGE.md)
+
 ## 功能特性
 
 - 🚀 **多CDN支持**：阿里云OSS、腾讯云COS、七牛云、又拍云、AWS CloudFront
@@ -57,11 +59,27 @@ npm install rv-image-optimize
 
 ### 文件引用说明
 
+#### React 项目使用（主入口）
+
 当您使用 `import { LazyImage } from 'rv-image-optimize'` 时：
 
 - **ES 模块环境**（现代打包工具如 Vite、Webpack 5+）：自动使用 `dist/image-optimize.es.js`
 - **CommonJS 环境**（Node.js 或旧版 Webpack）：使用 `dist/image-optimize.cjs.js`
 - **浏览器直接使用**：使用 `dist/image-optimize.umd.js`
+
+#### Vue 项目使用（工具函数入口）
+
+> **⚠️ 重要提示**：Vue 项目必须使用 `utils-only` 入口，避免导入 React 组件导致错误。
+
+当您使用 `import { optimizeImageUrl } from 'rv-image-optimize/utils-only'` 时：
+
+- **ES 模块环境**：自动使用 `dist/image-optimize-utils.es.js`（不包含 React 代码）
+- **CommonJS 环境**：使用 `dist/image-optimize-utils.cjs.js`
+- **浏览器直接使用**：使用 `dist/image-optimize-utils.umd.js`
+
+**为什么需要 `utils-only` 入口？**
+- 主入口（`rv-image-optimize`）包含 React 组件，在 Vue 项目中导入会导致 React 相关错误
+- `utils-only` 入口只包含工具函数，不包含任何 React 代码，适合 Vue、原生 JS 等非 React 项目
 
 当您使用 `import 'rv-image-optimize/styles'` 时：
 - 自动引用 `dist/style.css` 样式文件
@@ -96,8 +114,9 @@ function App() {
 }
 ```
 
-#### 2. 使用工具函数（从主入口导入）
+#### 2. 使用工具函数
 
+**React 项目（可以使用主入口）：**
 ```javascript
 import { 
   optimizeImageUrl, 
@@ -105,6 +124,17 @@ import {
   detectCDN,
   compareImageSizes 
 } from 'rv-image-optimize';
+```
+
+**Vue 项目（必须使用 utils-only 入口）：**
+```javascript
+import { 
+  optimizeImageUrl, 
+  generateResponsiveImage,
+  detectCDN,
+  compareImageSizes 
+} from 'rv-image-optimize/utils-only';
+```
 
 // 优化单个图片URL
 const optimizedUrl = optimizeImageUrl('https://example.com/image.jpg', {
@@ -151,18 +181,25 @@ import ProgressiveImage from 'rv-image-optimize/src/ProgressiveImage.jsx';
 
 **可用的按需导入路径：**
 
-| 导入路径 | 说明 | 包含内容 |
-|---------|------|---------|
-| `rv-image-optimize/utils` | 图片优化工具函数 | `optimizeImageUrl`, `loadImageProgressive`, `loadImagesProgressively` 等 |
-| `rv-image-optimize/lossless` | 无损压缩工具 | `compressImage`, `compressImages` 等 |
-| `rv-image-optimize/cache` | 缓存工具库 | `setCache`, `getCache`, `deleteCache` 等 |
-| `rv-image-optimize/LazyImage` | LazyImage 组件 | `LazyImage` 组件（需要 React） |
-| `rv-image-optimize/ProgressiveImage` | 渐进式加载组件 | `ProgressiveImage` 组件（需要 React） |
-| `rv-image-optimize/lib/imageOptimize.js` | 完整工具库 | 所有图片优化相关函数 |
-| `rv-image-optimize/lib/imageCache.js` | 缓存工具库 | IndexedDB 缓存相关函数 |
-| `rv-image-optimize/lib/losslessCompress.js` | 无损压缩库 | 完整无损压缩功能 |
-| `rv-image-optimize/src/LazyImage.jsx` | LazyImage 组件源码 | LazyImage 组件（需要 React） |
-| `rv-image-optimize/src/ProgressiveImage.jsx` | ProgressiveImage 组件源码 | ProgressiveImage 组件（需要 React） |
+| 导入路径 | 说明 | 包含内容 | 适用框架 |
+|---------|------|---------|---------|
+| `rv-image-optimize/utils-only` | **工具函数专用入口（推荐）** | 所有工具函数，**不包含 React 组件** | ✅ Vue、原生 JS、React |
+| `rv-image-optimize/utils` | 图片优化工具函数（源码） | `optimizeImageUrl`, `loadImageProgressive`, `loadImagesProgressively` 等 | ✅ Vue、原生 JS、React |
+| `rv-image-optimize/lossless` | 无损压缩工具 | `compressImage`, `compressImages` 等 | ✅ Vue、原生 JS、React |
+| `rv-image-optimize/cache` | 缓存工具库 | `setCache`, `getCache`, `deleteCache` 等 | ✅ Vue、原生 JS、React |
+| `rv-image-optimize/LazyImage` | LazyImage 组件 | `LazyImage` 组件（需要 React） | ❌ 仅 React |
+| `rv-image-optimize/ProgressiveImage` | 渐进式加载组件 | `ProgressiveImage` 组件（需要 React） | ❌ 仅 React |
+| `rv-image-optimize/lib/imageOptimize.js` | 完整工具库（源码） | 所有图片优化相关函数 | ✅ Vue、原生 JS、React |
+| `rv-image-optimize/lib/imageCache.js` | 缓存工具库（源码） | IndexedDB 缓存相关函数 | ✅ Vue、原生 JS、React |
+| `rv-image-optimize/lib/losslessCompress.js` | 无损压缩库（源码） | 完整无损压缩功能 | ✅ Vue、原生 JS、React |
+| `rv-image-optimize/src/LazyImage.jsx` | LazyImage 组件源码 | LazyImage 组件（需要 React） | ❌ 仅 React |
+| `rv-image-optimize/src/ProgressiveImage.jsx` | ProgressiveImage 组件源码 | ProgressiveImage 组件（需要 React） | ❌ 仅 React |
+
+**Vue 项目推荐使用：**
+```javascript
+// ✅ 推荐：使用 utils-only 入口（构建后的文件，不包含 React）
+import { optimizeImageUrl, loadImageWithCache } from 'rv-image-optimize/utils-only';
+```
 
 **按需导入示例：**
 
@@ -189,41 +226,54 @@ import LazyImage from 'rv-image-optimize/src/LazyImage.jsx';
 
 > **⚠️ 重要提示**：
 > - `LazyImage` 和 `ProgressiveImage` 是 **React 组件**，**无法直接在 Vue 项目中使用**
-> - Vue 项目应该使用**工具函数**来优化图片 URL，然后配合 Vue 的 `<img>` 标签或自行实现懒加载功能
-> - 如果遇到导入错误，请确保只导入工具函数，不要导入 React 组件
+> - Vue 项目**必须使用 `utils-only` 入口**，避免导入 React 组件导致错误
+> - `utils-only` 入口只包含工具函数，不包含任何 React 代码，完全兼容 Vue 项目
+> - 如果遇到 `Cannot read properties of undefined (reading 'ReactCurrentDispatcher')` 错误，说明使用了错误的入口，请改用 `utils-only`
 
 #### ⚠️ 常见错误和解决方案
 
-**错误1：尝试导入 React 组件**
+**错误1：使用主入口导致 React 错误**
+```javascript
+// ❌ 错误：主入口包含 React 组件，在 Vue 中会报错
+// 错误信息：Cannot read properties of undefined (reading 'ReactCurrentDispatcher')
+import { LazyImage, ProgressiveImage } from 'rv-image-optimize';
+import { optimizeImageUrl } from 'rv-image-optimize'; // 也会报错
+
+// ✅ 正确：使用 utils-only 入口（推荐）
+import { optimizeImageUrl, loadImageProgressive } from 'rv-image-optimize/utils-only';
+```
+
+**错误2：exports 条件匹配错误**
+```javascript
+// ❌ 如果遇到："./utils-only" is not exported under the conditions...
+// 解决方案：
+// 1. 确保已安装最新版本：npm install rv-image-optimize@latest
+// 2. 清除缓存并重新安装：rm -rf node_modules/.vite && npm install
+// 3. 重启开发服务器
+
+// ✅ 正确使用方式
+import { optimizeImageUrl } from 'rv-image-optimize/utils-only';
+```
+
+**错误3：尝试导入 React 组件**
 ```javascript
 // ❌ 错误：Vue 中不能使用 React 组件
 import { LazyImage, ProgressiveImage } from 'rv-image-optimize';
 
 // ✅ 正确：只导入工具函数
-import { optimizeImageUrl, loadImageProgressive } from 'rv-image-optimize';
+import { optimizeImageUrl, loadImageProgressive } from 'rv-image-optimize/utils-only';
 ```
 
-**错误2：旧版本导入方式（v1.x）**
-```javascript
-// ❌ 旧版本可能不支持这种导入方式
-import LazyImage from 'rv-image-optimize/LazyImage';
-
-// ✅ 新版本（v2.x+）使用工具函数
-import { optimizeImageUrl } from 'rv-image-optimize';
-// 或按需导入
-import { optimizeImageUrl } from 'rv-image-optimize/utils';
-```
-
-**错误3：ES 模块兼容性问题**
+**错误4：ES 模块兼容性问题**
 如果遇到 `Cannot find module` 或 `Module not found` 错误：
 ```javascript
-// ✅ 方式1：使用默认导入（推荐）
-import { optimizeImageUrl } from 'rv-image-optimize';
+// ✅ 方式1：使用 utils-only 入口（推荐，构建后的文件）
+import { optimizeImageUrl } from 'rv-image-optimize/utils-only';
 
-// ✅ 方式2：使用 exports 路径
+// ✅ 方式2：使用源码路径（需要支持 ES 模块）
 import { optimizeImageUrl } from 'rv-image-optimize/utils';
 
-// ✅ 方式3：如果以上都不行，尝试直接导入 lib
+// ✅ 方式3：直接导入 lib（需要支持 ES 模块）
 import { optimizeImageUrl } from 'rv-image-optimize/lib/imageOptimize.js';
 ```
 
@@ -263,7 +313,8 @@ npm install rv-image-optimize
 
 <script setup>
 import { ref, computed } from 'vue';
-import { optimizeImageUrl, generateResponsiveImage } from 'rv-image-optimize';
+// ✅ 使用 utils-only 入口（推荐）
+import { optimizeImageUrl, generateResponsiveImage } from 'rv-image-optimize/utils-only';
 
 const imageUrl = ref('https://example.com/image.jpg');
 
@@ -312,7 +363,8 @@ const handleError = (e) => {
 </template>
 
 <script>
-import { optimizeImageUrl } from 'rv-image-optimize';
+// ✅ 使用 utils-only 入口（推荐）
+import { optimizeImageUrl } from 'rv-image-optimize/utils-only';
 
 export default {
   name: 'ImageComponent',
@@ -358,7 +410,8 @@ export default {
 </template>
 
 <script>
-import { optimizeImageUrl } from 'rv-image-optimize';
+// ✅ 使用 utils-only 入口（推荐）
+import { optimizeImageUrl } from 'rv-image-optimize/utils-only';
 
 export default {
   name: 'ImageComponent',
@@ -403,7 +456,8 @@ export default {
 
 <script setup>
 import { ref, computed } from 'vue';
-import { generateResponsiveImage } from 'rv-image-optimize';
+// ✅ 使用 utils-only 入口（推荐）
+import { generateResponsiveImage } from 'rv-image-optimize/utils-only';
 
 const imageUrl = ref('https://example.com/image.jpg');
 
@@ -434,7 +488,8 @@ const responsive = computed(() => {
 
 <script setup>
 import { ref } from 'vue';
-import { optimizeImageUrl } from 'rv-image-optimize';
+// ✅ 使用 utils-only 入口（推荐）
+import { optimizeImageUrl } from 'rv-image-optimize/utils-only';
 
 const images = ref([
   'https://example.com/image1.jpg',
@@ -542,7 +597,8 @@ const handleLoad = (e) => {
 // main.js (Vue3)
 import { createApp } from 'vue';
 import App from './App.vue';
-import { optimizeImageUrl, generateResponsiveImage } from 'rv-image-optimize';
+// ✅ 使用 utils-only 入口（推荐）
+import { optimizeImageUrl, generateResponsiveImage } from 'rv-image-optimize/utils-only';
 
 const app = createApp(App);
 
@@ -580,8 +636,15 @@ const options = { width: 800, quality: 85 };
 
 #### 基础使用（默认库和表）
 
+**React 项目：**
 ```javascript
 import { setCache, getCache, deleteCache, cleanExpiredCache, getCacheStats, hasCache } from 'rv-image-optimize';
+```
+
+**Vue 项目（推荐使用 utils-only）：**
+```javascript
+import { setCache, getCache, deleteCache, cleanExpiredCache, getCacheStats, hasCache } from 'rv-image-optimize/utils-only';
+```
 
 // 设置缓存（默认 30 天过期，使用默认库和表）
 await setCache('user:123', { name: 'John', age: 30 });
@@ -738,7 +801,9 @@ await setCache('cart:user123', { items: [] }, 1, 'BusinessDB', 'carts');
 **1. API 数据缓存**
 
 ```javascript
-import { setCache, getCache } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { setCache, getCache } from 'rv-image-optimize/utils-only';
 
 async function fetchUserData(userId) {
   // 先检查缓存
@@ -761,7 +826,9 @@ async function fetchUserData(userId) {
 **2. 表单数据缓存**
 
 ```javascript
-import { setCache, getCache } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { setCache, getCache } from 'rv-image-optimize/utils-only';
 
 // 保存表单数据（30 分钟过期）
 await setCache('form:draft', formData, 0.5);
@@ -776,7 +843,9 @@ if (draft) {
 **3. 配置信息缓存**
 
 ```javascript
-import { setCache, getCache } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { setCache, getCache } from 'rv-image-optimize/utils-only';
 
 // 缓存应用配置（7 天过期）
 await setCache('app:config', {
@@ -792,7 +861,9 @@ const config = await getCache('app:config') || getDefaultConfig();
 **4. 搜索结果缓存**
 
 ```javascript
-import { setCache, getCache } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { setCache, getCache } from 'rv-image-optimize/utils-only';
 
 async function search(query) {
   const cacheKey = `search:${query}`;
@@ -816,7 +887,9 @@ async function search(query) {
 #### 存储配额查询
 
 ```javascript
-import { getStorageQuota, getAllDatabasesUsage } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { getStorageQuota, getAllDatabasesUsage } from 'rv-image-optimize/utils-only';
 
 // 查询存储配额和使用情况
 const quota = await getStorageQuota();
@@ -900,7 +973,9 @@ await setCache('key', largeData, 24, 'MyDB', 'MyTable', {
 
 **3. 手动检查配额**
 ```javascript
-import { checkStorageQuota, cleanExpiredCache } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { checkStorageQuota, cleanExpiredCache } from 'rv-image-optimize/utils-only';
 
 // 检查存储配额（估算需要 10MB）
 const quotaCheck = await checkStorageQuota(10 * 1024 * 1024);
@@ -998,7 +1073,9 @@ setInterval(async () => {
 
 ```javascript
 // 子应用 A
-import { setCache, getCache, loadImageWithCache } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { setCache, getCache, loadImageWithCache } from 'rv-image-optimize/utils-only';
 
 // 使用子应用 A 专用的数据库和表
 const APP_A_DB = 'AppA_ImageCache';
@@ -1013,7 +1090,9 @@ await setCache('user:123', userData, 24, APP_A_DB, APP_A_TABLE);
 
 ```javascript
 // 子应用 B
-import { setCache, getCache, loadImageWithCache } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { setCache, getCache, loadImageWithCache } from 'rv-image-optimize/utils-only';
 
 // 使用子应用 B 专用的数据库和表
 const APP_B_DB = 'AppB_ImageCache';
@@ -1107,7 +1186,9 @@ await setCache(cacheKey, imageData, 30 * 24);
 图片缓存现在使用通用缓存 API，通过 `image:` 前缀的键名存储：
 
 ```javascript
-import { setCache, getCache, deleteCache } from 'rv-image-optimize';
+// React 项目：from 'rv-image-optimize'
+// Vue 项目：from 'rv-image-optimize/utils-only'
+import { setCache, getCache, deleteCache } from 'rv-image-optimize/utils-only';
 
 // 图片缓存键格式：image:{url}
 const imageUrl = 'https://example.com/image.jpg';
@@ -1405,8 +1486,8 @@ const imageConfig = {
 ```vue
 <script setup>
 import { ref, computed } from 'vue';
-// ✅ 只导入工具函数，不要导入 React 组件
-import { optimizeImageUrl, loadImageProgressive } from 'rv-image-optimize';
+// ✅ 使用 utils-only 入口（推荐），不包含 React 组件
+import { optimizeImageUrl, loadImageProgressive } from 'rv-image-optimize/utils-only';
 
 const imageUrl = ref('https://example.com/image.jpg');
 const optimizedUrl = computed(() => {
@@ -1448,7 +1529,8 @@ A: 工具函数本身不支持 `rootMargin`，需要在 Vue 中自己实现 Inte
 ```vue
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { optimizeImageUrl } from 'rv-image-optimize';
+// ✅ 使用 utils-only 入口（推荐）
+import { optimizeImageUrl } from 'rv-image-optimize/utils-only';
 
 const imageUrl = ref('https://example.com/image.jpg');
 const shouldLoad = ref(false);

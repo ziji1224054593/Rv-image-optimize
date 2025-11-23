@@ -17,7 +17,16 @@
     ".": {
       "import": "./dist/image-optimize.es.js",
       "require": "./dist/image-optimize.cjs.js",
-      "browser": "./dist/image-optimize.umd.js"
+      "browser": "./dist/image-optimize.umd.js",
+      "default": "./dist/image-optimize.es.js"
+    },
+    "./utils-only": {
+      "development": "./dist/image-optimize-utils.es.js",
+      "import": "./dist/image-optimize-utils.es.js",
+      "require": "./dist/image-optimize-utils.cjs.js",
+      "browser": "./dist/image-optimize-utils.umd.js",
+      "module": "./dist/image-optimize-utils.es.js",
+      "default": "./dist/image-optimize-utils.es.js"
     },
     "./utils": "./lib/imageOptimize.js",
     "./lossless": "./lib/losslessCompress.js",
@@ -30,7 +39,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-utils-only.js",
     "build:static": "vite build --mode static",
     "prepublishOnly": "npm run build"
   },
