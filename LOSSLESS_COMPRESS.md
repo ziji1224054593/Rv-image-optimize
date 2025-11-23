@@ -4,10 +4,37 @@
 
 `losslessCompress.js` 是一个专门用于无损压缩图片的模块，它继承并使用了 `imageOptimize.js` 中的基础功能，在保持图片质量不变的前提下，通过优化编码、去除元数据等方式减小文件大小。
 
+## 最新更新
+
+### v2.0+ 新增功能
+
+1. **`quality` 参数支持**：
+   - 新增 `quality` 参数（0-1），可以控制图片质量和文件大小
+   - `quality: null` 或 `quality: 1.0`：无损压缩（默认）
+   - `quality < 1.0`：有损压缩，文件更小但质量会降低
+   - 注意：PNG 格式不支持 quality 参数，会自动转换为 WebP（如果支持）
+
+2. **`format` 参数增强**：
+   - 支持 `'webp'`、`'png'` 或 `null`（自动选择）
+   - 自动选择逻辑：原图是 PNG/WebP 保持原格式，否则选择 WebP
+
+3. **参数限制说明**：
+   - `compressionLevel`：⚠️ **浏览器端无效**，Canvas API 不支持 PNG 压缩级别参数
+   - `removeMetadata`：Canvas 绘制时默认会移除所有元数据，此参数主要用于文档说明
+   - `optimizePalette`：仅对 PNG 格式有效，通过颜色量化减少颜色数量
+
+### 重要提示
+
+- **浏览器端限制**：Canvas API 不支持 PNG 压缩级别参数，`compressionLevel` 在浏览器端无效
+- **质量控制**：主要使用 `quality` 参数控制文件大小，而不是 `compressionLevel`
+- **格式选择**：推荐使用 WebP 格式，压缩率高且现代浏览器支持良好
+
 ## 特性
 
-- ✅ **真正的无损压缩**：保持图片质量不变
+- ✅ **真正的无损压缩**：保持图片质量不变（使用 quality=1.0 时）
+- ✅ **支持有损压缩**：通过 quality 参数（0-1）控制图片质量和文件大小
 - ✅ **支持多种格式**：PNG、WebP 等支持无损压缩的格式，JPEG 自动转换为 PNG/WebP
+- ✅ **自定义输出格式**：可选择 WebP（推荐）、PNG 或自动选择
 - ✅ **GPU 加速**：自动检测并使用 GPU 加速（如果支持），提升处理性能
 - ✅ **Element UI 格式**：返回的文件信息兼容 Element UI Upload 组件
 - ✅ **回调函数支持**：压缩完成后自动调用回调函数，便于上传到后端
@@ -16,6 +43,7 @@
 - ✅ **详细统计**：提供压缩前后的详细对比信息
 - ✅ **继承现有功能**：使用 `imageOptimize.js` 中的工具函数
 - ✅ **全面的文件验证**：支持图片格式验证（扩展名、MIME类型、文件头）和文件大小校验
+- ⚠️ **浏览器端限制**：Canvas API 不支持 PNG 压缩级别参数，compressionLevel 在浏览器端无效
 
 ## 安装
 
@@ -51,9 +79,11 @@ import { losslessCompress } from 'rv-image-optimize/lossless';
 const result = await losslessCompress('https://example.com/image.png', {
   maxWidth: 1920,        // 可选：最大宽度
   maxHeight: 1080,       // 可选：最大高度
-  format: 'webp',        // 可选：输出格式（png/webp），默认自动选择
-  removeMetadata: true,  // 可选：是否移除元数据（默认true）
-  compressionLevel: 6,   // 可选：PNG压缩级别（0-9，默认6）
+  format: 'webp',        // 可选：输出格式（'webp'/'png' 或 null 自动选择）
+  quality: 0.85,         // 可选：图片质量（0-1，默认null使用最高质量）
+  removeMetadata: true,  // 可选：是否移除元数据（默认true，Canvas绘制时自动移除）
+  optimizePalette: true, // 可选：是否优化调色板（仅PNG，默认true）
+  compressionLevel: 6,   // 可选：PNG压缩级别（0-9，默认6，⚠️浏览器端无效）
 });
 
 console.log('原始大小:', result.originalSizeFormatted);
@@ -93,7 +123,8 @@ fileInput.onchange = async (e) => {
   // 一步到位，直接压缩，无需额外检查
   const result = await losslessCompress(file, {
     maxWidth: 1920,
-    format: 'webp',
+    format: 'webp',        // 或 'png' 或 null（自动选择）
+    quality: 0.85,         // 图片质量（0-1），null表示使用默认值
     // 回调函数：压缩完成后自动调用
     onComplete: async (compressedFile, compressionResult, fileInfo) => {
       // fileInfo 已经是 Element UI 格式，直接使用
@@ -143,7 +174,8 @@ const imageUrls = [
 
 const results = await losslessCompressBatch(imageUrls, {
   maxWidth: 1920,
-  format: 'webp',
+  format: 'webp',  // 或 'png' 或 null（自动选择）
+  quality: 0.85,   // 可选：图片质量（0-1）
 }, 3); // 并发数量
 
 results.forEach((item, index) => {
@@ -159,14 +191,52 @@ results.forEach((item, index) => {
 });
 ```
 
-### 4. 对比压缩效果
+### 4. 使用 quality 参数控制压缩质量
+
+```javascript
+import { losslessCompress } from 'rv-image-optimize/lossless';
+
+// 无损压缩（quality: null 或 1.0）
+const losslessResult = await losslessCompress(file, {
+  maxWidth: 1920,
+  format: 'webp',
+  quality: null,  // 或 quality: 1.0，使用最高质量（无损）
+});
+
+// 有损压缩（quality: 0.85，85% 质量）
+const lossyResult = await losslessCompress(file, {
+  maxWidth: 1920,
+  format: 'webp',
+  quality: 0.85,  // 85% 质量，文件更小但质量会降低
+});
+
+// 低质量压缩（quality: 0.5，50% 质量）
+const lowQualityResult = await losslessCompress(file, {
+  maxWidth: 1920,
+  format: 'webp',
+  quality: 0.5,   // 50% 质量，文件最小但质量较差
+});
+
+console.log('无损压缩:', losslessResult.compressedSizeFormatted);
+console.log('有损压缩:', lossyResult.compressedSizeFormatted);
+console.log('低质量压缩:', lowQualityResult.compressedSizeFormatted);
+```
+
+**注意**：
+- `quality` 参数范围：0-1（0 表示最低质量，1 表示最高质量）
+- 对于 WebP 格式：quality 参数有效，可以控制文件大小和质量
+- 对于 PNG 格式：quality 参数无效，PNG 不支持 quality 参数
+- 如果指定了 `quality < 1.0` 且输出格式为 PNG，会自动转换为 WebP（如果浏览器支持）
+
+### 5. 对比压缩效果
 
 ```javascript
 import { compareLosslessCompression } from 'rv-image-optimize/lossless';
 
 const comparison = await compareLosslessCompression('https://example.com/image.png', {
   maxWidth: 1920,
-  format: 'webp',
+  format: 'webp',  // 或 'png' 或 null（自动选择）
+  quality: 0.85,   // 可选：图片质量（0-1）
 });
 
 if (comparison.success) {
@@ -207,7 +277,9 @@ fileInput.onchange = async (e) => {
   try {
     const result = await losslessCompress(file, {
       maxWidth: 1920,
-      format: 'webp',
+      format: 'webp',  // 或 'png' 或 null（自动选择）
+      quality: 0.85,   // 可选：图片质量（0-1）  // 或 'png' 或 null（自动选择）
+      quality: 0.85,   // 可选：图片质量（0-1）
       // 文件验证配置
       validation: {
         allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'], // 允许的格式
@@ -365,15 +437,16 @@ fileInput.onchange = async (e) => {
 
 | 属性名 | 类型 | 必填 | 默认值 | 说明 |
 |--------|------|------|--------|------|
-| `maxWidth` | `number` | 否 | `null` | 最大宽度（像素） |
-| `maxHeight` | `number` | 否 | `null` | 最大高度（像素） |
-| `format` | `string` | 否 | `null` | 输出格式（'png'/'webp'），默认自动选择 |
-| `removeMetadata` | `boolean` | 否 | `true` | 是否移除元数据 |
-| `optimizePalette` | `boolean` | 否 | `true` | 是否优化调色板（仅 PNG） |
-| `compressionLevel` | `number` | 否 | `6` | PNG 压缩级别（0-9） |
+| `maxWidth` | `number` | 否 | `null` | 最大宽度（像素），超过此宽度会按比例缩放 |
+| `maxHeight` | `number` | 否 | `null` | 最大高度（像素），超过此高度会按比例缩放 |
+| `format` | `string \| null` | 否 | `null` | 输出格式：<br/>- `'webp'`: WebP格式（推荐，压缩率高）<br/>- `'png'`: PNG格式（无损，文件较大）<br/>- `null`: 自动选择（原图是PNG/WebP保持原格式，否则选择WebP） |
+| `quality` | `number \| null` | 否 | `null` | 图片质量（0-1）：<br/>- `null`: 使用默认值（无损压缩使用1.0，有损压缩使用0.8）<br/>- `0-1`: 指定质量值，值越大质量越高但文件越大<br/>- 注意：PNG格式不支持quality参数，会自动转换为WebP（如果支持） |
+| `removeMetadata` | `boolean` | 否 | `true` | 是否移除元数据：<br/>- `true`: 移除元数据（默认，Canvas绘制时自动移除）<br/>- `false`: 理论上保留元数据，但Canvas API不支持保留元数据<br/>- ⚠️ 注意：此参数主要用于文档说明，实际效果：Canvas绘制总是会移除元数据<br/>- 如需保留元数据，需要使用专门的库（如 piexifjs） |
+| `optimizePalette` | `boolean` | 否 | `true` | 是否优化调色板（仅PNG格式有效）：<br/>- `true`: 通过颜色量化减少颜色数量（超过256色时量化到216色），可减小PNG文件大小<br/>- `false`: 不优化调色板<br/>- ⚠️ 注意：可能会略微影响图片质量，但通常肉眼难以察觉 |
+| `compressionLevel` | `number` | 否 | `6` | PNG压缩级别（0-9）：<br/>- ⚠️ **重要限制**：Canvas API不支持直接设置PNG压缩级别参数<br/>- **实际效果**：<br/>  - 对于WebP格式：此参数**完全无效**，只有quality参数有效<br/>  - 对于PNG格式：此参数**也无效**，浏览器端无法控制PNG压缩级别<br/>  - 仅当compressionLevel > 6且输出格式为PNG时，会建议转换为WebP（如果支持）<br/>- **建议**：对于浏览器端压缩，主要使用quality参数控制文件大小<br/>- 如需精确控制PNG压缩级别，必须使用服务端处理工具（如pngquant、optipng、imagemin） |
 | `onComplete` | `Function` | 否 | `null` | 压缩完成回调函数，接收三个参数：<br/>- `compressedFile` (File): 压缩后的 File 对象<br/>- `compressionResult` (Object): 完整的压缩结果对象<br/>- `fileInfo` (Object): Element UI Upload 组件格式的文件信息对象 |
-| `fileName` | `string` | 否 | `null` | 压缩后文件的名称（默认自动生成） |
-| `validation` | `Object` | 否 | `null` | 文件验证选项对象 |
+| `fileName` | `string` | 否 | `null` | 压缩后文件的名称（默认自动生成：原文件名-compressed.扩展名） |
+| `validation` | `Object` | 否 | `null` | 文件验证选项对象（详见下方 validation 对象属性） |
 
 #### validation 对象属性
 
@@ -662,7 +735,8 @@ function ImageCompressor() {
       // 一步到位，直接压缩
       const compressed = await losslessCompress(file, {
         maxWidth: 1920,
-        format: 'webp',
+        format: 'webp',  // 或 'png' 或 null（自动选择）
+      quality: 0.85,   // 可选：图片质量（0-1）
         // 可选：使用回调函数自动上传
         onComplete: async (compressedFile, compressionResult, fileInfo) => {
           const formData = new FormData();
@@ -761,7 +835,8 @@ function ImageCompressorWithValidation() {
     try {
       const compressed = await losslessCompress(validFiles[0], {
         maxWidth: 1920,
-        format: 'webp',
+        format: 'webp',  // 或 'png' 或 null（自动选择）
+      quality: 0.85,   // 可选：图片质量（0-1）
         // 可以再次传递验证配置（可选，如果已经验证过可以禁用）
         validation: {
           ...validationConfig,
@@ -848,7 +923,8 @@ const handleFileUpload = async (e) => {
     // 一步到位，直接压缩
     const compressed = await losslessCompress(file, {
       maxWidth: 1920,
-      format: 'webp',
+      format: 'webp',  // 或 'png' 或 null（自动选择）
+      quality: 0.85,   // 可选：图片质量（0-1）
       // 可选：使用回调函数自动上传
       onComplete: async (compressedFile, compressionResult, fileInfo) => {
         const formData = new FormData();
@@ -918,7 +994,10 @@ JPEG（Joint Photographic Experts Group）是一种**有损压缩**格式，它�
 2. **格式支持**：最适合无损压缩的格式是 PNG 和 WebP，JPEG 格式会自动转换为 PNG/WebP
 3. **CORS 限制**：如果压缩远程图片 URL，需要确保图片服务器支持 CORS
 4. **性能考虑**：压缩大图片可能需要一些时间，建议使用 `maxWidth`/`maxHeight` 限制尺寸
-5. **质量保证**：无损压缩保持图片质量不变，但压缩率可能不如有损压缩
+5. **质量保证**：
+   - 使用 `quality: null` 或 `quality: 1.0` 时，保持图片质量不变（无损压缩）
+   - 使用 `quality < 1.0` 时，可以进行有损压缩，文件更小但质量会降低
+   - 压缩率可能不如专业的有损压缩工具
 6. **GPU 加速**：函数会自动检测并使用 GPU 加速（如果支持），提升处理性能
 7. **在线图片建议**：对于在线图片，优先使用 CDN 压缩参数（如果支持），而不是本地压缩
 8. **文件验证**：
@@ -926,6 +1005,18 @@ JPEG（Joint Photographic Experts Group）是一种**有损压缩**格式，它�
    - 严格模式会检查扩展名、MIME 类型和文件头，确保文件格式真实可靠
    - 文件头检测（Magic Number）是最可靠的验证方式，可以防止文件扩展名被伪造
    - 建议在上传前进行验证，避免处理无效文件
+9. **参数限制说明**：
+   - **`quality` 参数**：控制图片质量（0-1），对 WebP 和 JPEG 格式有效，PNG 格式不支持
+   - **`compressionLevel` 参数**：⚠️ **浏览器端无效**，Canvas API 不支持 PNG 压缩级别参数
+     - 对于 WebP 格式：此参数完全无效，只有 quality 参数有效
+     - 对于 PNG 格式：此参数也无效，浏览器端无法控制 PNG 压缩级别
+     - 如需精确控制 PNG 压缩级别，必须使用服务端处理工具（如 pngquant、optipng、imagemin）
+   - **`removeMetadata` 参数**：Canvas 重新绘制图片时默认会移除所有元数据，此参数主要用于文档说明
+   - **`optimizePalette` 参数**：仅对 PNG 格式有效，通过颜色量化减少颜色数量，可能略微影响图片质量
+10. **输出格式选择**：
+    - **WebP**：推荐使用，压缩率高，文件小，现代浏览器支持良好
+    - **PNG**：无损格式，文件通常较大，适合需要无损的场景
+    - **自动选择**：如果原图是 PNG 或 WebP，保持原格式；否则选择最佳格式（WebP > PNG）
 
 ## 与 imageOptimize.js 的关系
 

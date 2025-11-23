@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LazyImage, ProgressiveImage } from '../src/index.js';
 import {
   losslessCompress,
   downloadCompressedImage,
   validateImageFile
-} from '../losslessCompress.js';
-import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../imageOptimize.js';
+} from '../lib/losslessCompress.js';
+import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../lib/imageOptimize.js';
+import { deleteCache, DEFAULT_DB_NAME, DEFAULT_STORE_NAME_GENERAL } from '../lib/imageCache.js';
 import '../src/LazyImage.css';
 
 // 无损压缩对比组件
@@ -19,6 +20,9 @@ function LosslessCompressDemo() {
   const [enableAutoUpload, setEnableAutoUpload] = useState(false); // 是否启用自动上传
   const [validationEnabled, setValidationEnabled] = useState(true); // 是否启用文件验证
   const [validationStrictMode, setValidationStrictMode] = useState(true); // 验证模式：严格或宽松
+  const [quality, setQuality] = useState(85); // 压缩质量（0-100）
+  const [compressionLevel, setCompressionLevel] = useState(6); // PNG压缩级别（0-9）
+  const [outputFormat, setOutputFormat] = useState('webp'); // 输出格式：'webp' | 'png' | null（自动选择）
 
   // 验证配置（可以通过 props 或 state 传递）
   const validationConfig = useMemo(() => ({
@@ -100,8 +104,9 @@ function LosslessCompressDemo() {
         const startTime = window.performance.now();
         const result = await losslessCompress(file, {
           maxWidth: 1920,
-          format: 'webp',
-          compressionLevel: 6,
+          format: outputFormat || null, // null 表示自动选择
+          compressionLevel: compressionLevel,
+          quality: quality / 100, // 将 0-100 转换为 0-1
           // 传递验证配置（可手动开启/关闭，并可切换严格/宽松模式）
           validation: validationConfig,
           // 使用回调函数：压缩完成后自动上传到后端
@@ -162,7 +167,7 @@ function LosslessCompressDemo() {
         // 生成优化后的URL（使用 imageOptimize）
         const optimizedUrl = optimizeImageUrl(URL.createObjectURL(file), {
           width: 1920,
-          quality: 85,
+          quality: quality,
           autoFormat: true,
         });
 
@@ -230,6 +235,148 @@ function LosslessCompressDemo() {
 
     setTotalStats({
       totalFiles: validFiles.length,
+      totalOriginalSize: totalOriginalSize > 0 ? totalOriginalSize : 0,
+      totalCompressedSize: totalCompressedSize > 0 ? totalCompressedSize : 0,
+      totalSaved,
+      totalSavedPercentage,
+      totalOriginalSizeFormatted: totalOriginalSize > 0 ? formatFileSize(totalOriginalSize) : '未知',
+      totalCompressedSizeFormatted: totalCompressedSize > 0 ? formatFileSize(totalCompressedSize) : '未知',
+      totalSavedFormatted: totalSaved !== null && !isNaN(totalSaved) ? formatFileSize(Math.abs(totalSaved)) : '未知',
+    });
+
+    setCompressing(false);
+    setCompressingIndex(-1);
+  };
+
+  // 重新压缩所有已加载的文件（使用新的 quality 值）
+  const handleRecompress = async () => {
+    if (files.length === 0 || compressing) {
+      return;
+    }
+
+    setCompressing(true);
+    setCompressingIndex(-1);
+    setResults([]);
+    setTotalStats(null);
+    setUploadStatus({});
+
+    const compressResults = [];
+    let totalOriginalSize = 0;
+    let totalCompressedSize = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setCompressingIndex(i);
+
+      try {
+        const startTime = window.performance.now();
+        const result = await losslessCompress(file, {
+          maxWidth: 1920,
+          format: outputFormat || null, // null 表示自动选择
+          compressionLevel: compressionLevel,
+          quality: quality / 100, // 将 0-100 转换为 0-1
+          validation: validationConfig,
+          onComplete: enableAutoUpload ? async (compressedFile, compressionResult, fileInfo) => {
+            fileInfo.status = 'uploading';
+            setUploadStatus(prev => ({
+              ...prev,
+              [i]: { uploading: true, success: false, error: null, fileInfo }
+            }));
+
+            try {
+              const uploadResult = await simulateUploadToBackend(compressedFile, compressionResult, file.name);
+              fileInfo.status = 'success';
+              fileInfo.response = uploadResult;
+              fileInfo.url = uploadResult.url;
+              setUploadStatus(prev => ({
+                ...prev,
+                [i]: { uploading: false, success: true, error: null, result: uploadResult, fileInfo }
+              }));
+            } catch (uploadError) {
+              fileInfo.status = 'fail';
+              fileInfo.error = uploadError.message;
+              setUploadStatus(prev => ({
+                ...prev,
+                [i]: { uploading: false, success: false, error: uploadError.message, fileInfo }
+              }));
+            }
+          } : null,
+        });
+        const endTime = window.performance.now();
+        const compressTime = endTime - startTime;
+
+        // 生成优化后的URL（使用新的 quality 值）
+        const optimizedUrl = optimizeImageUrl(URL.createObjectURL(file), {
+          width: 1920,
+          quality: quality,
+          autoFormat: true,
+        });
+
+        // 创建预览
+        const preview = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const dataURL = e.target.result;
+            const img = new Image();
+            img.onload = () => {
+              resolve({
+                dataURL,
+                width: img.width,
+                height: img.height,
+              });
+            };
+            img.src = dataURL;
+          };
+          reader.readAsDataURL(file);
+        });
+
+        const fileResult = {
+          file,
+          result,
+          fileInfo: result.fileInfo,
+          optimizedUrl,
+          preview,
+          performance: {
+            compressTime: compressTime.toFixed(2),
+            compressTimeFormatted: `${compressTime.toFixed(2)}ms`,
+          },
+          index: i,
+        };
+
+        compressResults.push(fileResult);
+
+        // 更新统计
+        if (result.originalSize !== null && !isNaN(result.originalSize) && result.originalSize > 0) {
+          totalOriginalSize += result.originalSize;
+        }
+        if (result.compressedSize !== null && !isNaN(result.compressedSize)) {
+          totalCompressedSize += result.compressedSize;
+        }
+
+        // 实时更新结果
+        setResults([...compressResults]);
+      } catch (error) {
+        console.error(`文件 ${file.name} 压缩失败:`, error);
+        compressResults.push({
+          file,
+          result: null,
+          error: error.message,
+          index: i,
+        });
+        setResults([...compressResults]);
+      }
+    }
+
+    // 计算总体统计
+    const totalSaved = (totalOriginalSize > 0 && !isNaN(totalOriginalSize) && !isNaN(totalCompressedSize))
+      ? (totalOriginalSize - totalCompressedSize)
+      : null;
+    const totalSavedPercentage = (totalOriginalSize > 0 && !isNaN(totalOriginalSize) && totalSaved !== null)
+      ? parseFloat(((totalSaved / totalOriginalSize) * 100).toFixed(2))
+      : null;
+
+    setTotalStats({
+      totalFiles: files.length,
       totalOriginalSize: totalOriginalSize > 0 ? totalOriginalSize : 0,
       totalCompressedSize: totalCompressedSize > 0 ? totalCompressedSize : 0,
       totalSaved,
@@ -356,7 +503,7 @@ function LosslessCompressDemo() {
       <h2>无损压缩功能演示与对比（支持批量处理）</h2>
 
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <input
             type="file"
             accept="image/*"
@@ -364,6 +511,95 @@ function LosslessCompressDemo() {
             onChange={handleFileChange}
             style={{ marginBottom: '10px' }}
           />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <label style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>压缩质量：</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={quality}
+              onChange={(e) => {
+                const value = parseInt(e.target.value, 10);
+                if (!isNaN(value) && value >= 0 && value <= 100) {
+                  setQuality(value);
+                }
+              }}
+              style={{
+                width: '60px',
+                padding: '4px 8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            />
+            <span style={{ fontSize: '14px', color: '#666' }}>(0-100)</span>
+          </div>
+          {/* <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <label style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>压缩级别：</label>
+            <select
+              value={compressionLevel}
+              onChange={(e) => {
+                const value = parseInt(e.target.value, 10);
+                if (!isNaN(value) && value >= 0 && value <= 9) {
+                  setCompressionLevel(value);
+                }
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
+              title="⚠️ 注意：浏览器端无法控制 PNG/WebP 压缩级别，此参数主要用于服务端处理。对于 WebP 格式，只有 quality 参数有效。"
+            >
+              {Array.from({ length: 10 }, (_, i) => (
+                <option key={i} value={i}>{i}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: '14px', color: '#ff4d4f' }} title="⚠️ 浏览器端限制：此参数对 WebP 格式无效，只有 quality 参数有效">
+              ⚠️ (浏览器端无效)
+            </span>
+          </div> */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <label style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>输出格式：</label>
+            <select
+              value={outputFormat}
+              onChange={(e) => {
+                setOutputFormat(e.target.value);
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="webp">WebP（推荐，压缩率高）</option>
+              <option value="png">PNG（无损，文件较大）</option>
+              <option value="">自动选择（根据原图格式）</option>
+            </select>
+          </div>
+          {files.length > 0 && (
+            <button
+              onClick={handleRecompress}
+              disabled={compressing}
+              style={{
+                padding: '4px 12px',
+                backgroundColor: compressing ? '#d9d9d9' : '#1890ff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: compressing ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {compressing ? '压缩中...' : '重新压缩'}
+            </button>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
             <input
               type="checkbox"
@@ -725,6 +961,9 @@ function OnlineImageOptimizeDemo() {
   const imageUrl = "https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg";
   const [optimizedImages, setOptimizedImages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [compressionLevel] = useState(6); // PNG压缩级别（0-9），浏览器端无效，仅用于兼容
+  const [quality] = useState(85); // 压缩质量（0-100）
+  const [outputFormat] = useState('webp'); // 输出格式
 
   const handleOptimizeImage = async () => {
     setLoading(true);
@@ -732,8 +971,9 @@ function OnlineImageOptimizeDemo() {
       // 使用 losslessCompress 优化在线图片
       const result = await losslessCompress(imageUrl, {
         maxWidth: 1920,
-        format: 'webp',
-        compressionLevel: 6,
+        format: outputFormat || null,
+        compressionLevel: compressionLevel,
+        quality: quality / 100, // 将 0-100 转换为 0-1
       });
 
       setOptimizedImages(prev => [...prev, {
@@ -924,320 +1164,6 @@ function OnlineImageOptimizeDemo() {
   );
 }
 
-// 在线图片无损压力测试组件
-function OnlineImageStressTest() {
-  const imageUrl = "https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg";
-  const [optimizedImages, setOptimizedImages] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: 40 });
-  const [totalTime, setTotalTime] = useState(null);
-  const [startTime, setStartTime] = useState(null);
-  const [stats, setStats] = useState(null);
-
-  // 自动执行压力测试
-  useEffect(() => {
-    const runStressTest = async () => {
-      setLoading(true);
-      setStartTime(Date.now());
-      setOptimizedImages([]);
-      setProgress({ current: 0, total: 40 });
-
-      const results = [];
-      const totalStartTime = Date.now();
-      let totalOriginalSize = 0;
-      let totalCompressedSize = 0;
-      let successCount = 0;
-      let failCount = 0;
-
-      // 并发处理40张图片（使用 Promise.all 但限制并发数）
-      const batchSize = 5; // 每批处理5张
-      const totalBatches = Math.ceil(40 / batchSize);
-
-      for (let batch = 0; batch < totalBatches; batch++) {
-        const batchPromises = [];
-        const batchStart = batch * batchSize;
-        const batchEnd = Math.min(batchStart + batchSize, 40);
-
-        for (let i = batchStart; i < batchEnd; i++) {
-          batchPromises.push(
-            losslessCompress(imageUrl, {
-              maxWidth: 1920,
-              format: 'webp',
-              compressionLevel: 6,
-            })
-              .then((result) => {
-                results.push({
-                  index: i + 1,
-                  optimized: result,
-                  timestamp: Date.now(),
-                  success: true,
-                });
-                if (result.originalSize) totalOriginalSize += result.originalSize;
-                if (result.compressedSize) totalCompressedSize += result.compressedSize;
-                successCount++;
-                setProgress({ current: i + 1, total: 40 });
-                setOptimizedImages([...results]);
-              })
-              .catch((error) => {
-                results.push({
-                  index: i + 1,
-                  error: error.message,
-                  timestamp: Date.now(),
-                  success: false,
-                });
-                failCount++;
-                setProgress({ current: i + 1, total: 40 });
-                setOptimizedImages([...results]);
-              })
-          );
-        }
-
-        await Promise.all(batchPromises);
-      }
-
-      const totalEndTime = Date.now();
-      const totalTimeMs = totalEndTime - totalStartTime;
-      const totalTimeSeconds = (totalTimeMs / 1000).toFixed(2);
-      const totalTimeMinutes = (totalTimeMs / 60000).toFixed(2);
-
-      setTotalTime({
-        ms: totalTimeMs,
-        seconds: totalTimeSeconds,
-        minutes: totalTimeMinutes,
-        formatted: totalTimeMs < 60000
-          ? `${totalTimeSeconds} 秒`
-          : `${totalTimeMinutes} 分钟 (${totalTimeSeconds} 秒)`
-      });
-
-      const totalSaved = totalOriginalSize > 0 ? (totalOriginalSize - totalCompressedSize) : null;
-      const totalSavedPercentage = totalOriginalSize > 0
-        ? parseFloat(((totalSaved / totalOriginalSize) * 100).toFixed(2))
-        : null;
-
-      setStats({
-        totalImages: 40,
-        successCount,
-        failCount,
-        totalOriginalSize,
-        totalCompressedSize,
-        totalSaved,
-        totalSavedPercentage,
-        totalOriginalSizeFormatted: totalOriginalSize > 0 ? formatFileSize(totalOriginalSize) : '未知',
-        totalCompressedSizeFormatted: totalCompressedSize > 0 ? formatFileSize(totalCompressedSize) : '未知',
-        totalSavedFormatted: totalSaved !== null ? formatFileSize(Math.abs(totalSaved)) : '未知',
-        averageTime: (totalTimeMs / 40).toFixed(2),
-      });
-
-      setLoading(false);
-    };
-
-    runStressTest();
-  }, []); // 只在组件挂载时执行一次
-
-  return (
-    <div style={{
-      padding: '20px',
-      border: '1px solid #ddd',
-      borderRadius: '8px',
-      backgroundColor: '#f9f9f9'
-    }}>
-      <h2>在线图片无损压力测试</h2>
-      <p style={{ color: '#666', marginBottom: '20px' }}>
-        自动对同一张图片进行40次无损压缩处理，测试性能和稳定性
-      </p>
-
-      {/* 进度和统计信息 */}
-      <div style={{
-        padding: '15px',
-        backgroundColor: loading ? '#e3f2fd' : '#e8f5e9',
-        borderRadius: '4px',
-        marginBottom: '20px'
-      }}>
-        <div style={{ marginBottom: '10px' }}>
-          <strong>处理进度:</strong> {progress.current} / {progress.total}
-          <div style={{
-            width: '100%',
-            height: '20px',
-            backgroundColor: '#e0e0e0',
-            borderRadius: '10px',
-            marginTop: '10px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              width: `${(progress.current / progress.total) * 100}%`,
-              height: '100%',
-              backgroundColor: loading ? '#1890ff' : '#52c41a',
-              transition: 'width 0.3s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '12px',
-              fontWeight: 'bold'
-            }}>
-              {Math.round((progress.current / progress.total) * 100)}%
-            </div>
-          </div>
-        </div>
-
-        {loading && (
-          <div style={{ color: '#1890ff', fontSize: '14px' }}>
-            ⏳ 正在处理中，请稍候...
-          </div>
-        )}
-
-        {totalTime && !loading && (
-          <div style={{ marginTop: '15px' }}>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#52c41a', marginBottom: '10px' }}>
-              ✅ 全部处理完成！
-            </div>
-            <div style={{ fontSize: '16px', marginBottom: '5px' }}>
-              <strong>总耗时:</strong> {totalTime.formatted}
-            </div>
-            <div style={{ fontSize: '14px', color: '#666' }}>
-              <strong>平均每张:</strong> {stats.averageTime} 毫秒
-            </div>
-          </div>
-        )}
-
-        {stats && !loading && (
-          <div style={{
-            marginTop: '15px',
-            padding: '10px',
-            backgroundColor: 'white',
-            borderRadius: '4px'
-          }}>
-            <h4 style={{ marginTop: 0, marginBottom: '10px' }}>统计信息</h4>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: '10px',
-              fontSize: '12px'
-            }}>
-              <div>
-                <div style={{ color: '#666' }}>成功数量</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#52c41a' }}>
-                  {stats.successCount} 张
-                </div>
-              </div>
-              <div>
-                <div style={{ color: '#666' }}>失败数量</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: stats.failCount > 0 ? '#f5222d' : '#52c41a' }}>
-                  {stats.failCount} 张
-                </div>
-              </div>
-              <div>
-                <div style={{ color: '#666' }}>原始总大小</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
-                  {stats.totalOriginalSizeFormatted}
-                </div>
-              </div>
-              <div>
-                <div style={{ color: '#666' }}>压缩后总大小</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#52c41a' }}>
-                  {stats.totalCompressedSizeFormatted}
-                </div>
-              </div>
-              <div>
-                <div style={{ color: '#666' }}>节省总大小</div>
-                <div style={{
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: stats.totalSavedPercentage > 0 ? '#1890ff' : '#ff9800'
-                }}>
-                  {stats.totalSavedFormatted}
-                  {stats.totalSavedPercentage !== null && (
-                    <span style={{ fontSize: '12px', marginLeft: '5px' }}>
-                      ({stats.totalSavedPercentage > 0 ? '-' : '+'}{Math.abs(stats.totalSavedPercentage)}%)
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 优化后的图片网格 */}
-      {optimizedImages.length > 0 && (
-        <div>
-          <h3>优化结果 ({optimizedImages.length} 张)</h3>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: '15px',
-            marginTop: '15px'
-          }}>
-            {optimizedImages.map((item, index) => (
-              <div key={item.timestamp || index} style={{
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                padding: '10px',
-                backgroundColor: 'white',
-                position: 'relative'
-              }}>
-                {item.success ? (
-                  <>
-                    <div style={{
-                      position: 'absolute',
-                      top: '5px',
-                      right: '5px',
-                      backgroundColor: '#52c41a',
-                      color: 'white',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontSize: '10px',
-                      fontWeight: 'bold'
-                    }}>
-                      #{item.index}
-                    </div>
-                    <img
-                      src={item.optimized.dataURL}
-                      alt={`优化图片 ${item.index}`}
-                      style={{
-                        width: '100%',
-                        height: 'auto',
-                        borderRadius: '4px',
-                        border: '1px solid #eee'
-                      }}
-                    />
-                    <div style={{
-                      marginTop: '8px',
-                      fontSize: '11px',
-                      color: '#666'
-                    }}>
-                      <div>大小: {item.optimized.compressedSizeFormatted}</div>
-                      {item.optimized.savedPercentage !== null && (
-                        <div style={{
-                          color: item.optimized.savedPercentage > 0 ? '#52c41a' : '#ff9800'
-                        }}>
-                          节省: {item.optimized.savedPercentage > 0 ? '-' : '+'}{Math.abs(item.optimized.savedPercentage)}%
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div style={{
-                    padding: '20px',
-                    textAlign: 'center',
-                    color: '#f5222d'
-                  }}>
-                    <div style={{ fontSize: '24px', marginBottom: '5px' }}>❌</div>
-                    <div style={{ fontSize: '12px' }}>失败</div>
-                    <div style={{ fontSize: '10px', marginTop: '5px', color: '#999' }}>
-                      {item.error}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // 模糊到清晰的渐进式加载演示组件
 function BlurToClearDemo() {
   const imageUrl = "https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg";
@@ -1388,15 +1314,55 @@ function ProgressiveLoadDemo() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState(null);
+  const [hasAutoLoaded, setHasAutoLoaded] = useState(false); // 标记是否已自动加载
+  const [useDomesticImages, setUseDomesticImages] = useState(true); // 默认使用国内图片
+  const [clearingCache, setClearingCache] = useState(false); // 清理缓存中状态
 
-  // 生成100张图片URL（使用相同的图片URL作为示例）
+  // 生成100张不同的真实图片URL
   const generateImageUrls = () => {
-    const baseUrl = "https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg";
-    return Array.from({ length: 100 }, (_, i) => ({
-      url: baseUrl,
-      priority: i < 20 ? 10 : (i < 50 ? 5 : 0), // 前20张优先级最高
-      index: i,
-    }));
+    if (useDomesticImages) {
+      // 使用国内可访问的图片服务
+      // 只使用 DummyImage.com（国内访问较快且稳定）
+      return Array.from({ length: 100 }, (_, i) => {
+        const imageId = i + 1;
+        // 使用不同的颜色和文字生成不同的图片
+        const colors = [
+          '4a90e2', 'e24a4a', '4ae24a', 'e2e24a', 'e24ae2',
+          '4ae2e2', 'ff6b6b', '4ecdc4', '45b7d1', 'f9ca24'
+        ];
+        const color = colors[i % colors.length];
+        
+        return {
+          url: `https://dummyimage.com/800x600/${color}/ffffff&text=Image+${imageId}`,
+          priority: i < 20 ? 10 : (i < 50 ? 5 : 0),
+          index: i,
+        };
+      });
+    } else {
+      // 使用 Picsum (Lorem Picsum) API（国外服务，国内访问较慢）
+      // 格式: https://picsum.photos/id/{id}/{width}/{height}
+      // ID范围: 1-1000，我们使用不同的ID确保每张图片都不同
+      // 注意：Picsum API 支持直接指定尺寸，但不支持 quality 等CDN优化参数
+      const imageIds = [
+        // 前20张：高优先级，使用较小的ID（加载更快）
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        // 中间30张：中等优先级
+        21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+        41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+        // 后50张：低优先级
+        51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
+        71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+        91, 92, 93, 94, 95, 96, 97, 98, 99, 100
+      ];
+      
+      return imageIds.map((id, i) => ({
+        // 使用原图URL（Picsum支持直接访问原图，不指定尺寸）
+        // 渐进式加载会通过 stages 中的 width 参数生成不同尺寸的URL
+        url: `https://picsum.photos/id/${id}`,
+        priority: i < 20 ? 10 : (i < 50 ? 5 : 0), // 前20张优先级最高
+        index: i,
+      }));
+    }
   };
 
   const handleStartLoading = async () => {
@@ -1409,16 +1375,126 @@ function ProgressiveLoadDemo() {
     let successCount = 0;
     let failCount = 0;
 
+    // URL转换函数（业务逻辑）
+    const urlTransformer = (url, stage, stageIndex) => {
+      // 处理国内图片服务（dummyimage.com）
+      if (url.includes('dummyimage.com')) {
+        // DummyImage.com 支持尺寸参数，直接返回带尺寸的 URL
+        if (stage.width != null && stage.height != null) {
+          // 提取原 URL 中的颜色和文字参数
+          const urlObj = new URL(url);
+          const pathParts = urlObj.pathname.split('/');
+          const color = pathParts[1]?.split('/')[0] || '4a90e2';
+          const text = urlObj.searchParams.get('text') || url.includes('text=') 
+            ? (url.includes('text=') ? decodeURIComponent(url.split('text=')[1].split('&')[0]) : 'Image')
+            : 'Image';
+          return `https://dummyimage.com/${stage.width}x${stage.height}/${color}/ffffff&text=${encodeURIComponent(text)}`;
+        }
+        return url; // 没有尺寸参数，返回原 URL
+      }
+      
+      // 处理 Picsum API
+      if (!url.includes('picsum.photos')) {
+        return null; // 不是Picsum URL，使用默认处理
+      }
+      
+      try {
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/').filter(p => p);
+        
+        // 提取 ID（路径格式: /id/{id} 或 /id/{id}/{width}/{height}）
+        let imageId = null;
+        if (pathParts.length >= 2 && pathParts[0] === 'id') {
+          imageId = pathParts[1];
+        }
+        
+        if (imageId) {
+          // 如果有尺寸参数（且不为null），使用尺寸参数构建URL
+          // Picsum API 要求同时提供 width 和 height
+          if (stage.width != null && stage.height != null) {
+            return `https://picsum.photos/id/${imageId}/${stage.width}/${stage.height}`;
+          } else if (stage.width != null) {
+            // 如果只有 width，使用相同的值作为 height（保持比例）
+            return `https://picsum.photos/id/${imageId}/${stage.width}/${stage.width}`;
+          } else if (stage.height != null) {
+            // 如果只有 height，使用相同的值作为 width（保持比例）
+            return `https://picsum.photos/id/${imageId}/${stage.height}/${stage.height}`;
+          } else {
+            // 没有尺寸参数，使用原图（不指定尺寸）
+            return `https://picsum.photos/id/${imageId}`;
+          }
+        }
+      } catch (error) {
+        // URL 解析失败，使用默认处理
+      }
+      
+      return null; // 使用默认处理
+    };
+
+    // 错误处理函数（业务逻辑）
+    const onStageError = async (error, stageIndex, stageUrl, stage) => {
+      // 检查是否是404错误
+      const is404 = error.message.includes('404') || error.message.includes('不存在');
+      
+      // 只处理 Picsum API 的 404 错误
+      if (!is404 || !stageUrl.includes('picsum.photos')) {
+        return null; // 不是404或不是Picsum URL，不处理
+      }
+      
+      try {
+        const urlObj = new URL(stageUrl);
+        const pathParts = urlObj.pathname.split('/').filter(p => p);
+        let imageId = null;
+        if (pathParts.length >= 2 && pathParts[0] === 'id') {
+          imageId = pathParts[1];
+        }
+        
+        if (imageId && stageIndex < 2) {
+          // 尝试使用原图URL（不指定尺寸）作为降级方案
+          const fallbackUrl = `https://picsum.photos/id/${imageId}`;
+          
+          // 快速验证原图是否存在
+          try {
+            const response = await fetch(fallbackUrl, { method: 'HEAD' });
+            if (response.ok) {
+              return fallbackUrl; // 返回降级URL
+            }
+          } catch (fetchError) {
+            // HEAD请求失败，忽略
+          }
+        }
+      } catch (parseError) {
+        // URL解析失败，忽略
+      }
+      
+      return null; // 不提供降级URL
+    };
+
     const results = await loadImagesProgressively(imageList, {
-      concurrency: 100, // 高并发
+      concurrency: 6, // 控制并发数，避免网络拥塞（6张图片同时加载，每张3阶段顺序执行）
+      // 说明：concurrency 控制同时加载的图片数量，不是总请求数
+      // 30张图片 × 3阶段 = 90个请求（顺序执行，不会同时发起）
+      // 但 concurrency: 6 意味着最多同时6张图片在加载，每张一个阶段请求
+      // 实际并发请求数 = 6（而不是 6×3=18），避免浏览器连接队列阻塞
       timeout: 30000,
       priority: true, // 启用优先级
+      retryOnError: true, // 启用重试
+      maxRetries: 2, // 最大重试2次
+      enableCache: true, // 启用缓存（设置为 false 可禁用缓存）
       // 渐进式加载阶段：从模糊到清晰
+      // 注意：不同图片服务支持的参数不同
+      // - Picsum API: 支持尺寸参数，但不支持 quality 等CDN优化参数
+      // - Placeholder/DummyImage: 支持尺寸参数
+      // - 其他 CDN: 可能支持 quality、format 等参数
       stages: [
-        { width: 20, quality: 20 },   // 阶段1: 极速模糊图
-        { width: 400, quality: 50 },   // 阶段2: 中等质量
-        { width: null, quality: 80 }    // 阶段3: 最终质量（原图）
+        { width: 50, height: 30 },   // 阶段1: 极小图（50x50）
+        // { width: 200, height: 200 },   // 阶段2: 小图（200x200）
+        { width: null, height: null }    // 阶段3: 原图（不指定尺寸）
       ],
+      // 业务逻辑：URL转换（支持多种图片服务）
+      urlTransformer: urlTransformer,
+      // 业务逻辑：错误处理（主要处理 Picsum API 的 404 错误）
+      onStageError: onStageError,
       onProgress: (current, total, result) => {
         const percentage = ((current / total) * 100).toFixed(1);
         setProgress(parseFloat(percentage));
@@ -1467,7 +1543,13 @@ function ProgressiveLoadDemo() {
           });
         } else {
           failCount++;
-          // 显示错误占位符
+          // 检查是否是 404 错误（某些 Picsum ID 不存在是正常的）
+          const is404 = result.error && (
+            result.error.message && result.error.message.includes('404') ||
+            result.error.stageUrl && result.error.stageUrl.includes('picsum.photos')
+          );
+          
+          // 显示错误占位符（404 错误也显示，但可以有不同的样式）
           setImages(prev => {
             const newImages = [...prev];
             newImages[result.index] = {
@@ -1476,6 +1558,7 @@ function ProgressiveLoadDemo() {
               loaded: false,
               error: result.error,
               isComplete: false,
+              is404: is404, // 标记是否为 404 错误
             };
             return newImages;
           });
@@ -1492,7 +1575,40 @@ function ProgressiveLoadDemo() {
     });
 
     setLoading(false);
+    setHasAutoLoaded(true); // 标记已加载
   };
+
+  // 清理 IndexedDB 缓存
+  const handleClearCache = async () => {
+    if (!window.confirm('确定要清理所有 IndexedDB 缓存吗？清理后下次加载图片将重新从网络获取。')) {
+      return;
+    }
+
+    setClearingCache(true);
+    try {
+      // 使用通用 API 清理缓存（需要指定表名）
+      // 注意：deleteCache 需要指定 key，如果要清理所有缓存，需要使用其他方法
+      // 这里暂时只清理默认表的缓存
+      await deleteCache(null, DEFAULT_DB_NAME, DEFAULT_STORE_NAME_GENERAL);
+      alert('缓存清理成功！');
+      // 可选：清理后重置图片列表，让用户重新加载
+      setImages([]);
+      setStats(null);
+      setHasAutoLoaded(false);
+    } catch (error) {
+      console.error('清理缓存失败:', error);
+      alert('清理缓存失败：' + (error.message || '未知错误'));
+    } finally {
+      setClearingCache(false);
+    }
+  };
+
+  // 组件挂载时自动触发加载
+  useEffect(() => {
+    if (!hasAutoLoaded && !loading) {
+      handleStartLoading();
+    }
+  }, []); // 只在组件挂载时执行一次
 
   return (
     <div style={{
@@ -1505,11 +1621,30 @@ function ProgressiveLoadDemo() {
       <h3>渐进式加载示例（100张图片，模糊到清晰）</h3>
       <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
         🎨 新功能：每张图片从模糊逐渐变清晰（3阶段加载）。
-        先加载极小的模糊图（20px），然后中等质量（400px），最后加载原图。
-        支持高并发（默认10）、错误隔离、独立错误信息。
+        先加载极小的模糊图（50x50），然后中等质量（200x200），最后加载原图。
+        支持高并发、错误隔离、独立错误信息。
+        <br />
+        <strong>注意：</strong>Picsum 是国外服务，国内访问较慢。建议使用国内图片服务以获得更好的体验。
       </p>
 
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={useDomesticImages}
+            onChange={(e) => {
+              setUseDomesticImages(e.target.checked);
+              setImages([]);
+              setStats(null);
+              setHasAutoLoaded(false);
+            }}
+            disabled={loading}
+            style={{ cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: '14px' }}>
+            使用国内图片服务（更快，推荐）
+          </span>
+        </label>
         <button
           onClick={handleStartLoading}
           disabled={loading}
@@ -1525,6 +1660,22 @@ function ProgressiveLoadDemo() {
           }}
         >
           {loading ? '加载中...' : '开始加载100张图片'}
+        </button>
+        <button
+          onClick={handleClearCache}
+          disabled={loading || clearingCache}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: clearingCache ? '#d9d9d9' : '#ff4d4f',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: (loading || clearingCache) ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+        >
+          {clearingCache ? '清理中...' : '清理 IndexedDB 缓存'}
         </button>
       </div>
 
@@ -1633,18 +1784,22 @@ function ProgressiveLoadDemo() {
                     <div style={{
                       width: '100%',
                       height: '100%',
-                      backgroundColor: '#ffebee',
+                      backgroundColor: img.is404 ? '#fff3e0' : '#ffebee', // 404 错误使用不同的背景色
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#f5222d',
+                      color: img.is404 ? '#ff9800' : '#f5222d', // 404 错误使用橙色
                       fontSize: '12px',
                       padding: '5px',
                       textAlign: 'center'
                     }}>
-                      <div style={{ fontSize: '20px', marginBottom: '5px' }}>❌</div>
-                      <div style={{ fontSize: '10px' }}>加载失败</div>
+                      <div style={{ fontSize: '20px', marginBottom: '5px' }}>
+                        {img.is404 ? '⚠️' : '❌'}
+                      </div>
+                      <div style={{ fontSize: '10px' }}>
+                        {img.is404 ? '资源不存在' : '加载失败'}
+                      </div>
                     </div>
                   ) : (
                     <img
@@ -1708,7 +1863,7 @@ function ProgressiveLoadDemo() {
 
 // 简单的 Tabs 组件
 function Tabs({ children, tabs }) {
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(0); // 默认打开第4个Tab（渐进式加载示例）
 
   return (
     <div>
@@ -1756,34 +1911,53 @@ function App() {
       <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}>
         {/* 第一页：LazyImage 组件示例 */}
         <div>
-          <h2>LazyImage 组件示例</h2>
-          <p style={{ color: '#666', marginBottom: '20px' }}>
-            展示 LazyImage 组件的懒加载和图片优化功能
-          </p>
 
-          <div style={{ marginBottom: '20px' }}>
-            <h3>懒加载示例</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <LazyImage
-                  key={i}
-                  src="https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg"
-                  alt={`懒加载图片 ${i + 1}`}
-                  width={200}
-                  height={200}
-                  rootMargin="50px"
-                  optimize={{
-                    width: 1376,
-                    quality: 90
-                  }}
-                  onOptimization={(info) => { }}
-                  onLoad={(event, optimizationInfo) => {
-                    // console.log(`图片 ${i + 1} 加载完成`);
-                  }}
-                  onClick={(event, imageInfo) => {
-                    // console.log(`图片 ${i + 1} 被点击`);
-                  }}
-                />
+          <div style={{ marginBottom: '40px' }}>
+            <h3>懒加载 + 渐进式加载示例</h3>
+            <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
+              🎨 新功能：结合懒加载和渐进式加载，图片从模糊逐渐变清晰，体验更丝滑。
+              先加载极小的模糊占位图，然后逐步加载更清晰的版本，最后加载原图。
+              <br />
+              <strong>参数说明：</strong>
+              <br />
+              • <code>progressive</code>: 是否启用渐进式加载（默认 false）
+              <br />
+              • <code>progressiveStages</code>: 渐进式加载阶段配置数组
+              <br />
+              • <code>progressiveTransitionDuration</code>: 过渡动画时间（毫秒，默认 300）
+              <br />
+              • <code>progressiveTimeout</code>: 每个阶段的加载超时时间（毫秒，默认 30000）
+              <br />
+              • <code>progressiveEnableCache</code>: 是否启用缓存（默认 true，设置为 false 可禁用缓存）
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div key={i} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '10px', backgroundColor: '#fff' }}>
+                  <LazyImage
+                    src="https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg"
+                    alt={`渐进式加载图片 ${i + 1}`}
+                    width="100%"
+                    height={300}
+                    rootMargin="50px"
+                    progressive={true}
+                    progressiveStages={[
+                      { width: 20, quality: 20, blur: 10 },   // 阶段1: 极速模糊图
+                      { width: 400, quality: 50, blur: 3 },   // 阶段2: 中等质量
+                      { width: null, quality: 80, blur: 1 }   // 阶段3: 最终质量（原图）
+                    ]}
+                    progressiveTransitionDuration={300}
+                    progressiveTimeout={30000}  // 每个阶段30秒超时（可根据网络情况调整）
+                    onProgressiveStageComplete={(stageIndex, stageUrl, stage) => {
+                      // console.log(`图片 ${i + 1} 阶段 ${stageIndex + 1} 完成`);
+                    }}
+                    onLoad={(event, optimizationInfo) => {
+                      // console.log(`图片 ${i + 1} 全部加载完成`);
+                    }}
+                  />
+                  <p style={{ marginTop: '10px', fontSize: '12px', color: '#999', textAlign: 'center' }}>
+                    图片 {i + 1} - 滚动查看渐进式加载效果
+                  </p>
+                </div>
               ))}
             </div>
           </div>
@@ -1808,10 +1982,6 @@ function App() {
         <div>
           <BlurToClearDemo />
         </div>
-        {/* 第四页：在线图片无损压力测试 */}
-        {/* <div>
-          <OnlineImageStressTest />
-        </div> */}
       </Tabs>
     </div>
   );

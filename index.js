@@ -1,5 +1,5 @@
 // index.js
-import { optimizeImageUrl } from './imageOptimize.js';
+import { optimizeImageUrl } from './lib/imageOptimize.js';
 
 const imageUrl = 'https://img.alicdn.com/imgextra/i1/O1CN01aO443I1lKv78s46Zw_!!6000000003037-2-tps-1080-1440.png';
 

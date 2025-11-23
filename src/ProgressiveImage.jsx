@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { loadImageProgressive, generateBlurPlaceholderUrl } from '../imageOptimize.js';
+import { generateBlurPlaceholderUrl } from '../lib/imageOptimize.js';
+import { loadImageProgressiveWithCache } from '../lib/imageCache.js';
 import './LazyImage.css';
 
 /**
@@ -20,6 +21,7 @@ import './LazyImage.css';
  *   ]
  * @param {number} props.transitionDuration - 过渡动画时间（毫秒，默认300）
  * @param {number} props.timeout - 每个阶段的加载超时时间（毫秒，默认30000）
+ * @param {boolean} props.enableCache - 是否启用缓存（默认true）
  * @param {boolean} props.showPlaceholder - 是否显示占位符（默认true）
  * @param {Function} props.onStageComplete - 阶段完成回调 (stageIndex, stageUrl, stage) => void
  * @param {Function} props.onComplete - 全部完成回调 (finalUrl) => void
@@ -41,6 +43,7 @@ export default function ProgressiveImage({
   ],
   transitionDuration = 300,
   timeout = 30000,
+  enableCache = true, // 是否启用缓存（默认true）
   showPlaceholder = true,
   onStageComplete = null,
   onComplete = null,
@@ -73,12 +76,13 @@ export default function ProgressiveImage({
     setErrorMessage('');
     setIsComplete(false);
 
-    // 开始渐进式加载
+    // 开始渐进式加载（带缓存）
     let isCancelled = false;
 
-    loadImageProgressive(src, {
+    loadImageProgressiveWithCache(src, {
       stages,
       timeout,
+      enableCache, // 传递缓存开关
       onStageComplete: (stageIndex, stageUrl, stage) => {
         if (isCancelled) return;
         setCurrentStageIndex(stageIndex + 1);
@@ -113,7 +117,7 @@ export default function ProgressiveImage({
     return () => {
       isCancelled = true;
     };
-  }, [src]);
+  }, [src, enableCache]);
 
   const containerStyle = {
     width: typeof width === 'number' ? `${width}px` : width,
