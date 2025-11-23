@@ -1,6 +1,15 @@
 # rv-image-optimize
 
-v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格式转换。
+> **⚠️ 重要提示：请升级到最新版本 v2.1.2+**
+> 
+> **本次重大更新（v2.1.2）**：
+> - 🔄 **IndexedDB 架构重构**：采用 Worker 架构，所有缓存操作在后台线程执行，避免阻塞主线程
+> - 🛡️ **自动降级支持**：浏览器不支持 Worker 时自动降级到主线程，确保兼容性
+> - 🗄️ **通用缓存 API**：支持多数据库、多表（objectStore）存储，可存储任意数据，不再局限于图片
+> - 🚫 **API 变更**：移除了旧的图片专用缓存 API（`getImageCache`, `saveImageCache`, `deleteImageCache` 等），统一使用通用缓存 API（`setCache`, `getCache`, `deleteCache`）
+> - 📦 **存储统一**：所有图片缓存统一存储在 `generalCache` 表中，使用 `image:` 前缀的键名
+> 
+> **升级指南**：如果您使用了旧的图片缓存 API，请参考文档更新为通用缓存 API。详情请查看 [通用缓存 API 文档](#通用缓存-apiindexeddb)
 
 ## 功能特性
 
@@ -25,7 +34,7 @@ v2/v3(react) 图片优化工具和懒加载组件，支持多种CDN和自动格�
 - 🔧 **错误与超时控制**：内置超时机制（默认30秒）、重试选项和回调函数（onError、onStageComplete），确保加载可靠，并提供详细错误信息。
 - 📱 **跨框架兼容**：React 中使用 ProgressiveImage 组件直接集成；Vue2/Vue3 通过工具函数（如 loadImageProgressive）手动实现，支持响应式和自定义 UI。
 - 📊 **进度与回调支持**：实时进度回调（onProgress）、阶段完成通知和整体完成事件，便于集成 UI 更新，如进度条或动态显示。
-- 💾 **IndexedDB 缓存**：已加载的图片自动缓存到 IndexedDB，下次访问时直接从缓存加载，大幅提升加载速度，减少网络请求。支持缓存开关控制。
+- 💾 **IndexedDB 缓存**：已加载的图片自动缓存到 IndexedDB，下次访问时直接从缓存加载，大幅提升加载速度，减少网络请求。支持缓存开关控制。采用 Worker 架构，避免阻塞主线程，不支持 Worker 时自动降级。
 
 
 ### 插件预览地址 
@@ -133,7 +142,7 @@ import ProgressiveImage from 'rv-image-optimize/ProgressiveImage';
 
 // 方式2：直接从 lib 或 src 导入（需要支持 ES 模块）
 import { optimizeImageUrl } from 'rv-image-optimize/lib/imageOptimize.js';
-import { getImageCache } from 'rv-image-optimize/lib/imageCache.js';
+import { setCache, getCache } from 'rv-image-optimize/lib/imageCache.js';
 import LazyImage from 'rv-image-optimize/src/LazyImage.jsx';
 import ProgressiveImage from 'rv-image-optimize/src/ProgressiveImage.jsx';
 ```
@@ -144,7 +153,7 @@ import ProgressiveImage from 'rv-image-optimize/src/ProgressiveImage.jsx';
 |---------|------|---------|
 | `rv-image-optimize/utils` | 图片优化工具函数 | `optimizeImageUrl`, `loadImageProgressive`, `loadImagesProgressively` 等 |
 | `rv-image-optimize/lossless` | 无损压缩工具 | `compressImage`, `compressImages` 等 |
-| `rv-image-optimize/cache` | 缓存工具库 | `getImageCache`, `saveImageCache`, `loadImageWithCache` 等 |
+| `rv-image-optimize/cache` | 缓存工具库 | `setCache`, `getCache`, `deleteCache` 等 |
 | `rv-image-optimize/LazyImage` | LazyImage 组件 | `LazyImage` 组件（需要 React） |
 | `rv-image-optimize/ProgressiveImage` | 渐进式加载组件 | `ProgressiveImage` 组件（需要 React） |
 | `rv-image-optimize/lib/imageOptimize.js` | 完整工具库 | 所有图片优化相关函数 |
@@ -159,13 +168,13 @@ import ProgressiveImage from 'rv-image-optimize/src/ProgressiveImage.jsx';
 // ✅ 推荐：使用 exports 路径（更稳定）
 import { optimizeImageUrl } from 'rv-image-optimize/utils';
 import { compressImage } from 'rv-image-optimize/lossless';
-import { getImageCache } from 'rv-image-optimize/cache';
+import { setCache, getCache, deleteCache } from 'rv-image-optimize/cache';
 import LazyImage from 'rv-image-optimize/LazyImage';
 import ProgressiveImage from 'rv-image-optimize/ProgressiveImage';
 
 // ✅ 也可以：直接从 lib 或 src 导入（需要支持 ES 模块）
 import { optimizeImageUrl } from 'rv-image-optimize/lib/imageOptimize.js';
-import { getImageCache } from 'rv-image-optimize/lib/imageCache.js';
+import { setCache, getCache } from 'rv-image-optimize/lib/imageCache.js';
 import LazyImage from 'rv-image-optimize/src/LazyImage.jsx';
 ```
 
@@ -223,7 +232,7 @@ npm install rv-image-optimize
 ```
 
 **版本要求：**
-- 推荐使用最新版本（v2.1.1+）
+- 推荐使用最新版本（v2.1.2+）
 - 如果使用旧版本（v1.x），请升级到最新版本以获得更好的兼容性
 - 检查版本：`npm list rv-image-optimize`
 
@@ -556,6 +565,447 @@ const imageUrl = 'https://example.com/image.jpg';
 const options = { width: 800, quality: 85 };
 </script>
 ```
+
+### 通用缓存 API（IndexedDB）
+
+`rv-image-optimize` 提供了通用的 IndexedDB 缓存系统，支持存储任意数据。**支持多数据库（库）和多表（objectStore）查询使用**。
+
+**架构说明**：
+- **Worker 架构**：所有 IndexedDB 操作在 Web Worker 中执行，避免阻塞主线程
+- **自动降级**：如果浏览器不支持 Web Worker，自动降级到主线程执行
+- **高性能**：使用 Transferable Objects 优化大数据传输
+- **多库多表**：支持创建多个数据库和多个表，实现数据隔离和分类管理
+
+#### 基础使用（默认库和表）
+
+```javascript
+import { setCache, getCache, deleteCache, cleanExpiredCache, getCacheStats, hasCache } from 'rv-image-optimize';
+
+// 设置缓存（默认 30 天过期，使用默认库和表）
+await setCache('user:123', { name: 'John', age: 30 });
+await setCache('api:data', { data: 'some data' }, 24); // 24 小时过期
+
+// 获取缓存
+const user = await getCache('user:123');
+console.log(user); // { name: 'John', age: 30 }
+
+// 检查缓存是否存在
+const exists = await hasCache('user:123');
+console.log(exists); // true
+
+// 删除缓存
+await deleteCache('user:123'); // 删除单个缓存
+await deleteCache(); // 清空当前表的所有缓存
+
+// 清理过期缓存
+const deletedCount = await cleanExpiredCache();
+console.log(`清理了 ${deletedCount} 个过期缓存`);
+
+// 获取缓存统计信息
+const stats = await getCacheStats();
+console.log(stats);
+// {
+//   count: 10,           // 缓存数量
+//   totalSize: 1024000,  // 总大小（字节）
+//   totalSizeMB: 0.98,   // 总大小（MB）
+//   expiredCount: 2     // 过期缓存数量
+// }
+```
+
+#### 多库多表使用（按库按表查询）
+
+```javascript
+import { 
+  setCache, 
+  getCache, 
+  deleteCache, 
+  getStoreNames,
+  deleteDatabase,
+  getAllDatabaseNames
+} from 'rv-image-optimize';
+
+// ========== 使用自定义库和表 ==========
+
+// 1. 在自定义库 "UserDB" 的 "users" 表中存储数据
+await setCache('user:123', { name: 'John' }, 24, 'UserDB', 'users');
+await setCache('user:456', { name: 'Jane' }, 24, 'UserDB', 'users');
+
+// 2. 在同一个库 "UserDB" 的 "sessions" 表中存储数据
+await setCache('session:abc', { token: 'xxx' }, 1, 'UserDB', 'sessions');
+
+// 3. 在另一个库 "AppDB" 的 "config" 表中存储数据
+await setCache('app:theme', { theme: 'dark' }, 0, 'AppDB', 'config');
+
+// 4. 从指定库和表获取数据
+const user = await getCache('user:123', 'UserDB', 'users');
+const session = await getCache('session:abc', 'UserDB', 'sessions');
+const config = await getCache('app:theme', 'AppDB', 'config');
+
+// 5. 删除指定库和表的缓存
+await deleteCache('user:123', 'UserDB', 'users'); // 删除单个
+await deleteCache(null, 'UserDB', 'users'); // 清空整个表
+
+// 6. 获取指定库的所有表名
+const storeNames = await getStoreNames('UserDB');
+console.log(storeNames); // ['users', 'sessions']
+
+// 7. 获取所有数据库名称
+const dbNames = await getAllDatabaseNames();
+console.log(dbNames); // ['ImageOptimizeCache', 'UserDB', 'AppDB']
+
+// 8. 删除整个数据库（会删除该库下的所有表和数据）
+await deleteDatabase('UserDB');
+```
+
+#### 库和表的概念
+
+- **数据库（库）**：相当于一个独立的数据库，可以有多个表
+- **对象存储（表）**：数据库中的表，用于存储数据
+- **自动创建**：如果指定的库或表不存在，系统会自动创建
+
+#### 使用场景示例
+
+**场景1：用户数据管理**
+
+```javascript
+// 创建 "UserDB" 库，包含 "users" 和 "preferences" 两个表
+
+// 用户基本信息表
+await setCache('user:123', {
+  name: 'John',
+  email: 'john@example.com'
+}, 30 * 24, 'UserDB', 'users');
+
+// 用户偏好设置表
+await setCache('user:123', {
+  theme: 'dark',
+  language: 'zh-CN'
+}, 0, 'UserDB', 'preferences'); // 永不过期
+
+// 查询用户信息
+const userInfo = await getCache('user:123', 'UserDB', 'users');
+const userPrefs = await getCache('user:123', 'UserDB', 'preferences');
+```
+
+**场景2：多应用数据隔离**
+
+```javascript
+// 应用A的数据存储在 "AppA_DB" 库
+await setCache('data:1', { value: 'A' }, 24, 'AppA_DB', 'data');
+
+// 应用B的数据存储在 "AppB_DB" 库
+await setCache('data:1', { value: 'B' }, 24, 'AppB_DB', 'data');
+
+// 两个应用的数据完全隔离，不会互相影响
+```
+
+**场景3：按业务模块分表**
+
+```javascript
+// 在同一个库中，按业务模块分表存储
+
+// 订单表
+await setCache('order:001', { amount: 100 }, 7 * 24, 'BusinessDB', 'orders');
+
+// 商品表
+await setCache('product:001', { name: 'Product' }, 30 * 24, 'BusinessDB', 'products');
+
+// 购物车表
+await setCache('cart:user123', { items: [] }, 1, 'BusinessDB', 'carts');
+```
+
+#### API 说明
+
+| 函数 | 说明 | 参数 | 返回值 |
+|------|------|------|--------|
+| `setCache(key, value, expireHours, dbName, storeName, options)` | 设置缓存 | `key`: 缓存键（string）<br/>`value`: 缓存值（任意类型）<br/>`expireHours`: 过期时间（小时，默认 30*24）<br/>`dbName`: 数据库名称（库名，可选，默认 'ImageOptimizeCache'）<br/>`storeName`: 表名（可选，默认 'generalCache'）<br/>`options`: 选项对象（可选）<br/>- `checkQuota`: 是否在存储前检查配额（默认 false）<br/>- `autoCleanOnQuotaError`: 配额不足时是否自动清理过期缓存（默认 false） | `Promise<void>` |
+| `getCache(key, dbName, storeName)` | 获取缓存 | `key`: 缓存键（string）<br/>`dbName`: 数据库名称（可选）<br/>`storeName`: 表名（可选） | `Promise<any\|null>` |
+| `deleteCache(key?, dbName, storeName)` | 删除缓存 | `key`: 缓存键（string，可选，不传则清空整个表）<br/>`dbName`: 数据库名称（可选）<br/>`storeName`: 表名（可选） | `Promise<void>` |
+| `cleanExpiredCache(dbName, storeName)` | 清理过期缓存 | `dbName`: 数据库名称（可选）<br/>`storeName`: 表名（可选） | `Promise<number>`（返回清理数量） |
+| `getCacheStats(dbName, storeName)` | 获取缓存统计 | `dbName`: 数据库名称（可选）<br/>`storeName`: 表名（可选） | `Promise<Object>` |
+| `hasCache(key, dbName, storeName)` | 检查缓存是否存在 | `key`: 缓存键（string）<br/>`dbName`: 数据库名称（可选）<br/>`storeName`: 表名（可选） | `Promise<boolean>` |
+| `getStoreNames(dbName)` | 获取指定库的所有表名 | `dbName`: 数据库名称（可选，默认 'ImageOptimizeCache'） | `Promise<Array<string>>` |
+| `deleteDatabase(dbName)` | 删除整个数据库 | `dbName`: 数据库名称（必填） | `Promise<void>` |
+| `getAllDatabaseNames()` | 获取所有数据库名称 | - | `Promise<Array<string>>` |
+| `getStorageQuota()` | 获取存储配额和使用情况 | - | `Promise<Object>` |
+| `checkStorageQuota(requiredSize)` | 检查存储配额是否足够 | `requiredSize`: 需要的存储空间（字节，可选） | `Promise<Object>` |
+| `getAllDatabasesUsage()` | 获取所有数据库的存储使用情况 | - | `Promise<Array<Object>>` |
+
+#### 使用场景示例
+
+**1. API 数据缓存**
+
+```javascript
+import { setCache, getCache } from 'rv-image-optimize';
+
+async function fetchUserData(userId) {
+  // 先检查缓存
+  const cached = await getCache(`user:${userId}`);
+  if (cached) {
+    return cached;
+  }
+  
+  // 从 API 获取数据
+  const response = await fetch(`/api/users/${userId}`);
+  const data = await response.json();
+  
+  // 保存到缓存（1 小时过期）
+  await setCache(`user:${userId}`, data, 1);
+  
+  return data;
+}
+```
+
+**2. 表单数据缓存**
+
+```javascript
+import { setCache, getCache } from 'rv-image-optimize';
+
+// 保存表单数据（30 分钟过期）
+await setCache('form:draft', formData, 0.5);
+
+// 恢复表单数据
+const draft = await getCache('form:draft');
+if (draft) {
+  formData = draft;
+}
+```
+
+**3. 配置信息缓存**
+
+```javascript
+import { setCache, getCache } from 'rv-image-optimize';
+
+// 缓存应用配置（7 天过期）
+await setCache('app:config', {
+  theme: 'dark',
+  language: 'zh-CN',
+  settings: { ... }
+}, 7 * 24);
+
+// 获取配置
+const config = await getCache('app:config') || getDefaultConfig();
+```
+
+**4. 搜索结果缓存**
+
+```javascript
+import { setCache, getCache } from 'rv-image-optimize';
+
+async function search(query) {
+  const cacheKey = `search:${query}`;
+  
+  // 检查缓存
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  
+  // 执行搜索
+  const results = await performSearch(query);
+  
+  // 缓存结果（1 小时过期）
+  await setCache(cacheKey, results, 1);
+  
+  return results;
+}
+```
+
+#### 存储配额查询
+
+```javascript
+import { getStorageQuota, getAllDatabasesUsage } from 'rv-image-optimize';
+
+// 查询存储配额和使用情况
+const quota = await getStorageQuota();
+console.log(quota);
+// {
+//   quota: 2147483648,        // 总配额（字节），约 2GB
+//   usage: 52428800,          // 已使用（字节），约 50MB
+//   quotaMB: 2048,            // 总配额（MB）
+//   usageMB: 50,              // 已使用（MB）
+//   availableMB: 1998,       // 可用空间（MB）
+//   usagePercent: 2.44,       // 使用百分比
+//   indexedDBUsage: 52428800, // IndexedDB 使用量（字节）
+//   indexedDBUsageMB: 50     // IndexedDB 使用量（MB）
+// }
+
+// 查询所有数据库的使用情况
+const databasesUsage = await getAllDatabasesUsage();
+console.log(databasesUsage);
+// [
+//   {
+//     dbName: 'ImageOptimizeCache',
+//     stores: [
+//       { storeName: 'generalCache', count: 10, size: 1024000, sizeMB: 0.98 },
+//       { storeName: 'generalCache', count: 5, size: 5120000, sizeMB: 4.88 }
+//     ],
+//     totalSize: 6144000,
+//     totalSizeMB: 5.86
+//   },
+//   {
+//     dbName: 'UserDB',
+//     stores: [
+//       { storeName: 'users', count: 100, size: 2048000, sizeMB: 1.95 }
+//     ],
+//     totalSize: 2048000,
+//     totalSizeMB: 1.95
+//   }
+// ]
+```
+
+#### IndexedDB 存储限制说明
+
+IndexedDB 的存储能力取决于浏览器和设备：
+
+| 浏览器 | 存储限制 | 说明 |
+|--------|---------|------|
+| **Chrome/Edge** | 通常为可用磁盘空间的 60% | 例如：100GB 磁盘空间，约 60GB 可用 |
+| **Firefox** | 通常为可用磁盘空间的 50% | 例如：100GB 磁盘空间，约 50GB 可用 |
+| **Safari** | 通常为 1GB | 移动端可能更少 |
+| **移动浏览器** | 通常为 50MB-1GB | 取决于设备存储空间 |
+
+**重要提示**：
+- 存储限制是**动态的**，会根据设备可用空间自动调整
+- 不同浏览器和设备的限制可能不同
+- 使用 `getStorageQuota()` 可以查询当前的实际配额
+- 建议在存储大量数据前先查询可用空间
+
+#### 存储配额满时的处理
+
+当存储配额已满时，会出现以下问题：
+
+**1. 存储失败**
+```javascript
+try {
+  await setCache('key', largeData);
+} catch (error) {
+  if (error.name === 'QuotaExceededError') {
+    console.error('存储配额已满:', error.message);
+    // 错误信息：存储配额已满，无法保存缓存。建议清理过期缓存或删除不需要的数据
+  }
+}
+```
+
+**2. 自动清理和重试**
+```javascript
+// 启用自动清理功能（配额不足时自动清理过期缓存后重试）
+await setCache('key', largeData, 24, 'MyDB', 'MyTable', {
+  checkQuota: true,              // 存储前检查配额
+  autoCleanOnQuotaError: true    // 配额不足时自动清理过期缓存
+});
+```
+
+**3. 手动检查配额**
+```javascript
+import { checkStorageQuota, cleanExpiredCache } from 'rv-image-optimize';
+
+// 检查存储配额（估算需要 10MB）
+const quotaCheck = await checkStorageQuota(10 * 1024 * 1024);
+if (!quotaCheck.available) {
+  console.warn('存储空间不足，清理过期缓存...');
+  await cleanExpiredCache();
+  
+  // 再次检查
+  const quotaCheckAfterClean = await checkStorageQuota(10 * 1024 * 1024);
+  if (!quotaCheckAfterClean.available) {
+    console.error('清理后仍不足，需要手动删除数据');
+  }
+}
+```
+
+**4. 配额满时的错误特征**
+- 错误名称：`QuotaExceededError`
+- 错误信息：包含"存储配额已满"或"QuotaExceededError"
+- 可能的表现：
+  - `setCache()` 抛出异常
+  - 图片缓存保存失败，但不会影响图片显示（会降级为网络加载）
+
+**5. 最佳实践**
+```javascript
+// 方案1：存储前检查配额
+const dataSize = JSON.stringify(data).length;
+const quotaCheck = await checkStorageQuota(dataSize);
+if (quotaCheck.available) {
+  await setCache('key', data);
+} else {
+  // 清理过期缓存
+  await cleanExpiredCache();
+  // 再次尝试
+  await setCache('key', data);
+}
+
+// 方案2：使用自动清理选项
+await setCache('key', data, 24, 'MyDB', 'MyTable', {
+  autoCleanOnQuotaError: true  // 自动清理后重试
+});
+
+// 方案3：定期监控和清理
+setInterval(async () => {
+  const quota = await getStorageQuota();
+  if (quota.usagePercent > 80) {
+    console.warn('存储使用率超过 80%，清理过期缓存...');
+    await cleanExpiredCache();
+  }
+}, 60 * 60 * 1000); // 每小时检查一次
+```
+
+#### 注意事项
+
+1. **数据序列化**：所有数据都会被序列化为 JSON，因此只能存储可序列化的数据
+2. **过期时间**：`expireHours` 为 0 表示永不过期，默认 30 天（720 小时）
+3. **自动清理**：获取缓存时会自动检查并删除过期缓存
+4. **存储限制**：IndexedDB 存储限制因浏览器而异（通常 50MB-数GB），建议：
+   - 使用 `getStorageQuota()` 查询可用空间
+   - 使用 `checkStorageQuota()` 在存储前检查配额
+   - 定期清理过期缓存
+   - 监控存储使用情况，避免超出配额
+5. **隐私模式**：在隐私模式下，IndexedDB 可能不可用，函数会返回 null
+6. **存储配额管理**：当存储空间不足时，浏览器可能会：
+   - 提示用户清理存储空间
+   - 自动删除最旧的数据
+   - 拒绝新的存储请求（抛出 `QuotaExceededError`）
+7. **配额满时的处理**：
+   - 所有存储操作（`setCache`）会抛出 `QuotaExceededError` 异常
+   - 建议使用 `autoCleanOnQuotaError: true` 选项自动清理过期缓存
+   - 或手动调用 `cleanExpiredCache()` 清理过期数据
+   - 图片缓存失败不会影响图片显示，会自动降级为网络加载
+8. **Worker 架构**：
+   - 所有 IndexedDB 操作在 Web Worker 中执行，不会阻塞主线程
+   - 如果浏览器不支持 Web Worker，会自动降级到主线程执行
+   - Worker 是单例模式，只启动一次，后续操作复用同一个 Worker
+   - 使用 Transferable Objects 优化大数据传输，提升性能
+9. **默认表名**：所有图片缓存统一存储在 `generalCache` 表中，使用 `image:` 前缀的键名
+
+#### 图片缓存使用（使用通用缓存 API）
+
+图片缓存现在使用通用缓存 API，通过 `image:` 前缀的键名存储：
+
+```javascript
+import { setCache, getCache, deleteCache } from 'rv-image-optimize';
+
+// 图片缓存键格式：image:{url}
+const imageUrl = 'https://example.com/image.jpg';
+const cacheKey = `image:${imageUrl}`;
+
+// 获取图片缓存
+const cached = await getCache(cacheKey);
+if (cached && cached.data && cached.mimeType) {
+  // cached.data 是 base64 格式的图片数据
+  // cached.mimeType 是图片的 MIME 类型
+}
+
+// 保存图片缓存（通常由 loadImageWithCache 或 loadImageProgressiveWithCache 自动完成）
+await setCache(cacheKey, {
+  data: 'data:image/jpeg;base64,...',
+  mimeType: 'image/jpeg'
+}, 30 * 24); // 30 天过期
+
+// 删除图片缓存
+await deleteCache(cacheKey);
+```
+
+**注意**：图片缓存功能已统一使用通用缓存 API，不再提供单独的图片缓存函数。所有图片数据都存储在 `generalCache` 表中。
 
 ### 高级功能
 

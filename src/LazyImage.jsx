@@ -8,7 +8,7 @@ import {
   formatFileSize,
   generateBlurPlaceholderUrl,
 } from '../lib/imageOptimize.js';
-import { loadImageWithCache, loadImageProgressiveWithCache } from '../lib/imageCache.js';
+import { loadImageWithCache, loadImageProgressiveWithCache, setCache } from '../lib/imageCache.js';
 import './LazyImage.css';
 
 /**
@@ -218,7 +218,15 @@ export default function LazyImage({
           const arrayBuffer = await response.arrayBuffer();
           const imageData = new Uint8Array(arrayBuffer);
           const mimeType = response.headers.get('Content-Type') || 'image/jpeg';
-          await saveImageCache(finalUrl, imageData, mimeType);
+          
+          // 将图片数据转换为 base64 字符串存储
+          const binaryString = String.fromCharCode.apply(null, Array.from(imageData));
+          const base64String = btoa(binaryString);
+          const dataUrl = `data:${mimeType};base64,${base64String}`;
+          
+          // 使用通用 API 保存缓存
+          const cacheKey = `image:${finalUrl}`;
+          await setCache(cacheKey, { data: dataUrl, mimeType });
         }
       } catch (error) {
         // 保存缓存失败，不影响图片显示

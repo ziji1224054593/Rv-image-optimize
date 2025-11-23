@@ -438,36 +438,51 @@ await loadImagesProgressively(imageList, {
 
 ### 缓存管理
 
-如果需要手动管理缓存，可以使用以下工具函数：
+如果需要手动管理缓存，可以使用通用缓存 API：
 
 ```javascript
 import { 
-  getImageCache, 
-  saveImageCache, 
-  deleteImageCache,
-  cleanExpiredImageCache 
+  setCache, 
+  getCache, 
+  deleteCache,
+  cleanExpiredCache 
 } from 'rv-image-optimize';
 
+// 图片缓存键格式：image:{url}
+const imageUrl = 'https://example.com/image.jpg';
+const cacheKey = `image:${imageUrl}`;
+
 // 获取缓存
-const cached = await getImageCache(url);
+const cached = await getCache(cacheKey);
+if (cached && cached.data && cached.mimeType) {
+  // cached.data 是 base64 格式的图片数据（如：'data:image/jpeg;base64,...'）
+  // cached.mimeType 是图片的 MIME 类型（如：'image/jpeg'）
+}
 
 // 保存缓存（通常不需要手动调用，加载函数会自动保存）
-await saveImageCache(url, imageData, mimeType);
+await setCache(cacheKey, {
+  data: 'data:image/jpeg;base64,...',  // base64 格式的图片数据
+  mimeType: 'image/jpeg'                // MIME 类型
+}, 30 * 24); // 30 天过期（默认）
 
 // 删除缓存
-await deleteImageCache(url);
+await deleteCache(cacheKey);
 
-// 清理过期缓存（默认 7 天过期）
-await cleanExpiredImageCache();
+// 清理过期缓存（默认 30 天过期）
+await cleanExpiredCache();
 ```
+
+**注意**：图片缓存现在使用通用缓存 API，所有图片数据存储在 `generalCache` 表中。缓存键使用 `image:` 前缀以区分图片数据和其他数据。
 
 ### 注意事项
 
-1. **缓存大小**：IndexedDB 有存储限制（通常 50MB-1GB），建议定期清理过期缓存
-2. **缓存键**：使用最终优化后的 URL 作为缓存键，确保不同优化参数的图片不会互相覆盖
+1. **缓存大小**：IndexedDB 有存储限制（通常 50MB-数GB），建议定期清理过期缓存
+2. **缓存键**：使用 `image:{最终优化后的URL}` 作为缓存键，确保不同优化参数的图片不会互相覆盖
 3. **Blob URL**：从缓存读取的图片会创建 Blob URL，浏览器会自动管理这些 URL 的生命周期
 4. **隐私模式**：在隐私模式下，IndexedDB 可能不可用，会自动降级为网络加载
 5. **跨域问题**：缓存功能需要图片支持 CORS，否则无法保存到 IndexedDB
+6. **Worker 架构**：缓存操作在 Web Worker 中执行，不会阻塞主线程。如果浏览器不支持 Worker，会自动降级到主线程
+7. **存储格式**：图片数据以 base64 字符串格式存储，包含完整的 data URL（如：`data:image/jpeg;base64,...`）
 
 ### 性能优势
 

@@ -6,7 +6,7 @@ import {
   validateImageFile
 } from '../lib/losslessCompress.js';
 import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../lib/imageOptimize.js';
-import { deleteImageCache } from '../lib/imageCache.js';
+import { deleteCache, DEFAULT_DB_NAME, DEFAULT_STORE_NAME_GENERAL } from '../lib/imageCache.js';
 import '../src/LazyImage.css';
 
 // 无损压缩对比组件
@@ -1586,8 +1586,10 @@ function ProgressiveLoadDemo() {
 
     setClearingCache(true);
     try {
-      // 调用 deleteImageCache 不传参数，会清理所有缓存
-      await deleteImageCache();
+      // 使用通用 API 清理缓存（需要指定表名）
+      // 注意：deleteCache 需要指定 key，如果要清理所有缓存，需要使用其他方法
+      // 这里暂时只清理默认表的缓存
+      await deleteCache(null, DEFAULT_DB_NAME, DEFAULT_STORE_NAME_GENERAL);
       alert('缓存清理成功！');
       // 可选：清理后重置图片列表，让用户重新加载
       setImages([]);
