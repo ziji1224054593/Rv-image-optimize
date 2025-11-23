@@ -976,6 +976,129 @@ setInterval(async () => {
    - Worker 是单例模式，只启动一次，后续操作复用同一个 Worker
    - 使用 Transferable Objects 优化大数据传输，提升性能
 9. **默认表名**：所有图片缓存统一存储在 `generalCache` 表中，使用 `image:` 前缀的键名
+10. **微前端场景**：在微前端架构中，多个子应用可能共享同一个域名和 IndexedDB，需要注意数据隔离（见下方"微前端使用指南"）
+
+### 微前端使用指南
+
+在微前端架构中，多个子应用可能运行在同一个域名下，共享 IndexedDB 存储空间。为了避免数据冲突，建议为每个子应用配置独立的数据库和表名。
+
+#### 问题分析
+
+**潜在问题**：
+1. **数据冲突**：多个子应用使用相同的默认数据库名（`ImageOptimizeCache`）和表名（`generalCache`），会导致数据混在一起
+2. **缓存覆盖**：如果多个子应用使用相同的图片 URL，缓存键会冲突（都是 `image:{url}`），导致互相覆盖
+3. **清理影响**：一个子应用清理缓存时，可能影响其他子应用的缓存
+4. **Worker 共享**：多个子应用可能共享同一个 Worker 实例，但消息 ID 是独立的，不会冲突
+
+#### 解决方案
+
+**方案1：为每个子应用配置独立的数据库和表名（推荐）**
+
+```javascript
+// 子应用 A
+import { setCache, getCache, loadImageWithCache } from 'rv-image-optimize';
+
+// 使用子应用 A 专用的数据库和表
+const APP_A_DB = 'AppA_ImageCache';
+const APP_A_TABLE = 'appA_cache';
+
+// 图片缓存
+await loadImageWithCache(imageUrl, APP_A_DB, APP_A_TABLE);
+
+// 其他数据缓存
+await setCache('user:123', userData, 24, APP_A_DB, APP_A_TABLE);
+```
+
+```javascript
+// 子应用 B
+import { setCache, getCache, loadImageWithCache } from 'rv-image-optimize';
+
+// 使用子应用 B 专用的数据库和表
+const APP_B_DB = 'AppB_ImageCache';
+const APP_B_TABLE = 'appB_cache';
+
+// 图片缓存
+await loadImageWithCache(imageUrl, APP_B_DB, APP_B_TABLE);
+
+// 其他数据缓存
+await setCache('user:123', userData, 24, APP_B_DB, APP_B_TABLE);
+```
+
+**方案2：使用相同的数据库，但不同的表名**
+
+```javascript
+// 子应用 A
+const SHARED_DB = 'SharedImageCache';
+const APP_A_TABLE = 'appA_cache';
+
+await loadImageWithCache(imageUrl, SHARED_DB, APP_A_TABLE);
+```
+
+```javascript
+// 子应用 B
+const SHARED_DB = 'SharedImageCache';
+const APP_B_TABLE = 'appB_cache';
+
+await loadImageWithCache(imageUrl, SHARED_DB, APP_B_TABLE);
+```
+
+**方案3：在缓存键中添加应用前缀**
+
+```javascript
+// 子应用 A
+const APP_PREFIX = 'appA';
+
+// 图片缓存键：appA:image:{url}
+const cacheKey = `${APP_PREFIX}:image:${imageUrl}`;
+await setCache(cacheKey, imageData, 30 * 24);
+```
+
+#### 最佳实践
+
+1. **统一配置**：在子应用的配置文件中统一管理数据库和表名
+   ```javascript
+   // config.js
+   export const CACHE_CONFIG = {
+     dbName: `${APP_NAME}_ImageCache`,
+     storeName: `${APP_NAME}_cache`,
+     expireHours: 30 * 24
+   };
+   ```
+
+2. **渐进式加载配置**：
+   ```javascript
+   import { loadImagesProgressively } from 'rv-image-optimize';
+   
+   await loadImagesProgressively(imageList, {
+     enableCache: true,
+     dbName: CACHE_CONFIG.dbName,
+     storeName: CACHE_CONFIG.storeName,
+     // ... 其他配置
+   });
+   ```
+
+3. **组件中使用**：
+   ```jsx
+   import { LazyImage } from 'rv-image-optimize';
+   
+   // 注意：LazyImage 组件目前使用默认配置
+   // 如果需要自定义，建议使用工具函数
+   <LazyImage src={imageUrl} />
+   ```
+
+4. **清理缓存**：清理时只清理当前子应用的数据
+   ```javascript
+   // 只清理当前子应用的缓存
+   await deleteCache(null, APP_A_DB, APP_A_TABLE);
+   ```
+
+#### 注意事项
+
+- **Worker 共享**：多个子应用会共享同一个 Worker 实例，但这是安全的，因为消息 ID 是独立的
+- **数据库版本**：如果多个子应用同时升级数据库版本，IndexedDB 会自动处理冲突
+- **存储配额**：所有子应用共享同一个存储配额，需要注意总使用量
+- **跨应用访问**：如果需要跨子应用访问缓存，可以使用共享的数据库和表名
+
 
 #### 图片缓存使用（使用通用缓存 API）
 
@@ -1006,7 +1129,6 @@ await deleteCache(cacheKey);
 ```
 
 **注意**：图片缓存功能已统一使用通用缓存 API，不再提供单独的图片缓存函数。所有图片数据都存储在 `generalCache` 表中。
-
 ### 高级功能
 
 #### 1. 浏览器端压缩（当CDN不支持优化时）
