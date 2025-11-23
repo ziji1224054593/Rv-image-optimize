@@ -22,6 +22,7 @@ const config = defineConfig({
       },
     },
     cssCodeSplit: false,
+    emptyOutDir: false, // 不清空输出目录，保留主版本文件
   },
 });
 
