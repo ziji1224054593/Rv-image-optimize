@@ -70,6 +70,361 @@ import {
 import losslessCompressModule from 'rv-image-optimize/lossless';
 ```
 
+---
+
+## API 参考
+
+### `losslessCompress(imageSource, options)`
+
+无损压缩单张图片。
+
+#### 函数签名
+```typescript
+losslessCompress(
+  imageSource: string | File | Blob,
+  options?: LosslessCompressOptions
+): Promise<LosslessCompressResult>
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `imageSource` | `string \| File \| Blob` | ✅ | - | 图片源（URL、File 或 Blob） |
+| `options` | `LosslessCompressOptions` | ❌ | `{}` | 压缩选项对象（详见下方） |
+
+#### LosslessCompressOptions 类型
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `maxWidth` | `number` | ❌ | `null` | 最大宽度（像素），超过此宽度会按比例缩放 |
+| `maxHeight` | `number` | ❌ | `null` | 最大高度（像素），超过此高度会按比例缩放 |
+| `format` | `string \| null` | ❌ | `null` | 输出格式：<br/>- `'webp'`: WebP格式（推荐，压缩率高）<br/>- `'png'`: PNG格式（无损，文件较大）<br/>- `null`: 自动选择（原图是PNG/WebP保持原格式，否则选择WebP） |
+| `quality` | `number \| null` | ❌ | `null` | 图片质量（0-1）：<br/>- `null`: 使用默认值（无损压缩使用1.0，有损压缩使用0.8）<br/>- `0-1`: 指定质量值，值越大质量越高但文件越大<br/>- 注意：PNG格式不支持quality参数，会自动转换为WebP（如果支持） |
+| `removeMetadata` | `boolean` | ❌ | `true` | 是否移除元数据：<br/>- `true`: 移除元数据（默认，Canvas绘制时自动移除）<br/>- `false`: 理论上保留元数据，但Canvas API不支持保留元数据<br/>- ⚠️ 注意：此参数主要用于文档说明，实际效果：Canvas绘制总是会移除元数据<br/>- 如需保留元数据，需要使用专门的库（如 piexifjs） |
+| `optimizePalette` | `boolean` | ❌ | `true` | 是否优化调色板（仅PNG格式有效）：<br/>- `true`: 通过颜色量化减少颜色数量（超过256色时量化到216色），可减小PNG文件大小<br/>- `false`: 不优化调色板<br/>- ⚠️ 注意：可能会略微影响图片质量，但通常肉眼难以察觉 |
+| `compressionLevel` | `number` | ❌ | `6` | PNG压缩级别（0-9）：<br/>- ⚠️ **重要限制**：Canvas API不支持直接设置PNG压缩级别参数<br/>- **实际效果**：<br/>  - 对于WebP格式：此参数**完全无效**，只有quality参数有效<br/>  - 对于PNG格式：此参数**也无效**，浏览器端无法控制PNG压缩级别<br/>  - 仅当compressionLevel > 6且输出格式为PNG时，会建议转换为WebP（如果支持）<br/>- **建议**：对于浏览器端压缩，主要使用quality参数控制文件大小<br/>- 如需精确控制PNG压缩级别，必须使用服务端处理工具（如pngquant、optipng、imagemin） |
+| `onComplete` | `Function` | ❌ | `null` | 压缩完成回调函数，接收三个参数：<br/>- `compressedFile` (File): 压缩后的 File 对象<br/>- `compressionResult` (LosslessCompressResult): 完整的压缩结果对象<br/>- `fileInfo` (FileInfo): Element UI Upload 组件格式的文件信息对象 |
+| `fileName` | `string` | ❌ | `null` | 压缩后文件的名称（默认自动生成：原文件名-compressed.扩展名） |
+| `validation` | `ValidationOptions` | ❌ | `null` | 文件验证选项对象（详见下方 ValidationOptions 类型） |
+
+#### ValidationOptions 类型
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `allowedFormats` | `string[]` | ❌ | 所有支持的格式 | 允许的图片格式列表 |
+| `strict` | `boolean` | ❌ | `true` | 是否严格验证格式（同时检查扩展名、MIME类型和文件头） |
+| `maxSize` | `number` | ❌ | `null` | 最大文件大小（字节），默认不限制 |
+| `minSize` | `number` | ❌ | `0` | 最小文件大小（字节） |
+| `enabled` | `boolean` | ❌ | `true` | 是否启用验证（如果传入 validation 对象则启用） |
+
+#### 返回值类型：LosslessCompressResult
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `fileInfo` | `FileInfo` | Element UI Upload 组件格式的文件信息（主要使用字段） |
+| `file` | `File` | 压缩后的 File 对象，可直接用于 FormData 上传 |
+| `dataURL` | `string` | 压缩后的图片 DataURL |
+| `blob` | `Blob` | 压缩后的图片 Blob |
+| `gpuAccelerated` | `boolean` | 是否使用了 GPU 加速 |
+| `gpuMethod` | `string` | GPU 加速方法（webgl2/webgl/offscreenCanvas） |
+| `gpuInfo` | `Object` | GPU 支持信息 |
+| `originalWidth` | `number` | 原始宽度（像素） |
+| `originalHeight` | `number` | 原始高度（像素） |
+| `originalFormat` | `string` | 原始格式 |
+| `originalSize` | `number` | 原始大小（字节） |
+| `originalSizeFormatted` | `string` | 格式化后的原始大小 |
+| `compressedWidth` | `number` | 压缩后宽度（像素） |
+| `compressedHeight` | `number` | 压缩后高度（像素） |
+| `compressedFormat` | `string` | 压缩后格式 |
+| `compressedSize` | `number` | 压缩后大小（字节） |
+| `compressedSizeFormatted` | `string` | 格式化后的压缩后大小 |
+| `compressedFileName` | `string` | 压缩后的文件名 |
+| `savedSize` | `number` | 节省的大小（字节） |
+| `savedSizeFormatted` | `string` | 格式化后的节省大小 |
+| `savedPercentage` | `number` | 节省的百分比 |
+| `isEffective` | `boolean` | 是否有效压缩 |
+
+#### FileInfo 类型（fileInfo 对象）
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `name` | `string` | 文件名 |
+| `size` | `number` | 文件大小（字节） |
+| `sizeFormatted` | `string` | 格式化后的文件大小 |
+| `type` | `string` | MIME 类型 |
+| `uid` | `number` | 唯一标识 |
+| `status` | `string` | 状态（ready/uploading/success/fail） |
+| `raw` | `File` | 原始 File 对象 |
+| `compressionInfo` | `Object` | 压缩相关信息 |
+
+---
+
+### `losslessCompressBatch(imageSources, options, concurrency)`
+
+批量无损压缩图片。
+
+#### 函数签名
+```typescript
+losslessCompressBatch(
+  imageSources: Array<string | File | Blob>,
+  options?: LosslessCompressOptions,
+  concurrency?: number
+): Promise<Array<BatchCompressResult>>
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `imageSources` | `Array<string \| File \| Blob>` | ✅ | - | 图片源数组 |
+| `options` | `LosslessCompressOptions` | ❌ | `{}` | 压缩选项（同 `losslessCompress`） |
+| `concurrency` | `number` | ❌ | `3` | 并发数量 |
+
+#### 返回值类型：Array<BatchCompressResult>
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `source` | `string \| File \| Blob` | 原始图片源 |
+| `success` | `boolean` | 是否成功 |
+| `result` | `LosslessCompressResult` | 压缩结果（成功时，同 `losslessCompress` 返回值） |
+| `error` | `string` | 错误信息（失败时） |
+
+---
+
+### `compareLosslessCompression(imageSource, options)`
+
+对比无损压缩效果。
+
+#### 函数签名
+```typescript
+compareLosslessCompression(
+  imageSource: string | File | Blob,
+  options?: LosslessCompressOptions
+): Promise<CompareCompressionResult>
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `imageSource` | `string \| File \| Blob` | ✅ | - | 图片源 |
+| `options` | `LosslessCompressOptions` | ❌ | `{}` | 压缩选项（同 `losslessCompress`） |
+
+#### 返回值类型：CompareCompressionResult
+
+包含 `LosslessCompressResult` 的所有属性，以及：
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `success` | `boolean` | 是否成功 |
+| `compressionRatio` | `number \| null` | 压缩比 |
+| `recommendation` | `string` | 建议信息 |
+
+---
+
+### `checkLosslessCompressionSuitability(imageSource)`
+
+检查图片是否适合无损压缩（可选，现在可以直接使用 `losslessCompress`，无需先检查）。
+
+#### 函数签名
+```typescript
+checkLosslessCompressionSuitability(
+  imageSource: string | File | Blob
+): Promise<SuitabilityResult>
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `imageSource` | `string \| File \| Blob` | ✅ | - | 图片源 |
+
+#### 返回值类型：SuitabilityResult
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `format` | `string \| null` | 图片格式 |
+| `size` | `number \| null` | 图片大小（字节） |
+| `sizeFormatted` | `string \| null` | 格式化后的大小 |
+| `isSuitable` | `boolean` | 是否适合无损压缩 |
+| `recommendation` | `string` | 建议信息 |
+| `error` | `string \| null` | 错误信息（失败时） |
+
+---
+
+### `getGPUSupportInfo()`
+
+获取 GPU 加速支持信息。
+
+#### 函数签名
+```typescript
+getGPUSupportInfo(): GPUSupportInfo
+```
+
+#### 返回值类型：GPUSupportInfo
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `supported` | `boolean` | 是否支持 GPU 加速 |
+| `method` | `string` | GPU 方法（webgl2/webgl/offscreenCanvas） |
+| `details` | `Object` | 详细信息 |
+| `reason` | `string` | 支持或不支持的原因 |
+
+---
+
+### `downloadCompressedImage(compressedImage, filename)`
+
+下载压缩后的图片。
+
+#### 函数签名
+```typescript
+downloadCompressedImage(
+  compressedImage: Blob | string,
+  filename?: string
+): void
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `compressedImage` | `Blob \| string` | ✅ | - | 压缩后的图片（Blob 或 DataURL） |
+| `filename` | `string` | ❌ | 时间戳 | 文件名 |
+
+#### 返回值
+
+**类型：** `void`
+
+---
+
+### `validateImageFormat(file, options)`
+
+验证图片文件格式。
+
+#### 函数签名
+```typescript
+validateImageFormat(
+  file: File | Blob,
+  options?: ValidateFormatOptions
+): Promise<ValidateFormatResult>
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `file` | `File \| Blob` | ✅ | - | 文件对象 |
+| `options` | `ValidateFormatOptions` | ❌ | `{}` | 验证选项对象（详见下方） |
+
+#### ValidateFormatOptions 类型
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `allowedFormats` | `string[]` | ❌ | 所有支持的格式 | 允许的格式列表 |
+| `strict` | `boolean` | ❌ | `true` | 是否严格验证（同时检查扩展名、MIME类型和文件头） |
+
+#### 返回值类型：ValidateFormatResult
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `valid` | `boolean` | 是否有效 |
+| `format` | `string \| null` | 检测到的格式 |
+| `errors` | `string[]` | 错误信息数组 |
+
+#### 验证方式
+
+| 方式 | 说明 |
+|------|------|
+| **扩展名检测** | 检查文件扩展名 |
+| **MIME 类型检测** | 检查文件的 MIME 类型 |
+| **文件头检测** | 通过 Magic Number 检测实际文件格式（最可靠） |
+| **严格模式** | 要求扩展名、MIME 类型和文件头检测的格式必须一致 |
+| **宽松模式** | 优先使用文件头，其次 MIME 类型，最后扩展名 |
+
+#### 支持的格式
+
+jpg, jpeg, png, webp, gif, bmp, svg, avif
+
+---
+
+### `validateImageSize(file, options)`
+
+验证图片文件大小。
+
+#### 函数签名
+```typescript
+validateImageSize(
+  file: File | Blob,
+  options?: ValidateSizeOptions
+): ValidateSizeResult
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `file` | `File \| Blob` | ✅ | - | 文件对象 |
+| `options` | `ValidateSizeOptions` | ❌ | `{}` | 验证选项对象（详见下方） |
+
+#### ValidateSizeOptions 类型
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `maxSize` | `number` | ❌ | `null` | 最大文件大小（字节），默认不限制 |
+| `minSize` | `number` | ❌ | `0` | 最小文件大小（字节） |
+
+#### 返回值类型：ValidateSizeResult
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `valid` | `boolean` | 是否有效 |
+| `size` | `number` | 文件大小（字节） |
+| `errors` | `string[]` | 错误信息数组 |
+
+---
+
+### `validateImageFile(file, options)`
+
+综合验证图片文件（格式 + 大小）。
+
+#### 函数签名
+```typescript
+validateImageFile(
+  file: File | Blob,
+  options?: ValidateFileOptions
+): Promise<ValidateFileResult>
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `file` | `File \| Blob` | ✅ | - | 文件对象 |
+| `options` | `ValidateFileOptions` | ❌ | `{}` | 验证选项对象（包含 `ValidateFormatOptions` 和 `ValidateSizeOptions` 的所有选项） |
+
+#### ValidateFileOptions 类型
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `allowedFormats` | `string[]` | ❌ | 所有支持的格式 | 允许的格式列表 |
+| `strict` | `boolean` | ❌ | `true` | 是否严格验证格式 |
+| `maxSize` | `number` | ❌ | `null` | 最大文件大小（字节） |
+| `minSize` | `number` | ❌ | `0` | 最小文件大小（字节） |
+
+#### 返回值类型：ValidateFileResult
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `valid` | `boolean` | 是否有效 |
+| `format` | `string \| null` | 检测到的格式 |
+| `size` | `number` | 文件大小（字节） |
+| `errors` | `string[]` | 错误信息数组 |
+
+---
+
+## 使用示例
+
 ### 1. 基本无损压缩（一步到位）
 
 ```javascript
@@ -226,7 +581,7 @@ console.log('低质量压缩:', lowQualityResult.compressedSizeFormatted);
 - `quality` 参数范围：0-1（0 表示最低质量，1 表示最高质量）
 - 对于 WebP 格式：quality 参数有效，可以控制文件大小和质量
 - 对于 PNG 格式：quality 参数无效，PNG 不支持 quality 参数
-- 如果指定了 `quality < 1.0` 且输出格式为 PNG，会自动转换为 WebP（如果浏览器支持）
+- 如果指定了 `quality < 1.0` 且输出格式为 PNG，会自动转换为 WebP（如果支持）
 
 ### 5. 对比压缩效果
 
@@ -249,7 +604,7 @@ if (comparison.success) {
 }
 ```
 
-### 5. 检查图片是否适合无损压缩
+### 6. 检查图片是否适合无损压缩
 
 ```javascript
 import { checkLosslessCompressionSuitability } from 'rv-image-optimize/lossless';
@@ -262,9 +617,9 @@ console.log('是否适合:', suitability.isSuitable);
 console.log('建议:', suitability.recommendation);
 ```
 
-### 6. 文件验证功能（格式和大小校验）
+### 7. 文件验证功能（格式和大小校验）
 
-#### 6.1 在压缩时启用验证
+#### 7.1 在压缩时启用验证
 
 ```javascript
 import { losslessCompress } from 'rv-image-optimize/lossless';
@@ -278,7 +633,6 @@ fileInput.onchange = async (e) => {
     const result = await losslessCompress(file, {
       maxWidth: 1920,
       format: 'webp',  // 或 'png' 或 null（自动选择）
-      quality: 0.85,   // 可选：图片质量（0-1）  // 或 'png' 或 null（自动选择）
       quality: 0.85,   // 可选：图片质量（0-1）
       // 文件验证配置
       validation: {
@@ -324,7 +678,7 @@ fileInput.onchange = async (e) => {
    - **安全性强**：可以检测出扩展名与真实格式不匹配的恶意文件
    - **准确性好**：即使文件扩展名或 MIME 类型错误，也能准确识别真实格式
 
-#### 6.2 单独使用验证函数
+#### 7.2 单独使用验证函数
 
 ```javascript
 import { validateImageFormat, validateImageSize, validateImageFile } from 'rv-image-optimize/lossless';
@@ -374,7 +728,7 @@ fileInput.onchange = async (e) => {
 };
 ```
 
-#### 6.3 批量文件验证
+#### 7.3 批量文件验证
 
 ```javascript
 import { validateImageFile } from 'rv-image-optimize/lossless';
@@ -420,299 +774,7 @@ fileInput.onchange = async (e) => {
 };
 ```
 
-## API 参考
-
-### `losslessCompress(imageSource, options)`
-
-无损压缩单张图片。
-
-#### 参数
-
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `imageSource` | `string \| File \| Blob` | 是 | - | 图片源（URL、File 或 Blob） |
-| `options` | `Object` | 否 | `{}` | 压缩选项对象 |
-
-#### options 对象属性
-
-| 属性名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `maxWidth` | `number` | 否 | `null` | 最大宽度（像素），超过此宽度会按比例缩放 |
-| `maxHeight` | `number` | 否 | `null` | 最大高度（像素），超过此高度会按比例缩放 |
-| `format` | `string \| null` | 否 | `null` | 输出格式：<br/>- `'webp'`: WebP格式（推荐，压缩率高）<br/>- `'png'`: PNG格式（无损，文件较大）<br/>- `null`: 自动选择（原图是PNG/WebP保持原格式，否则选择WebP） |
-| `quality` | `number \| null` | 否 | `null` | 图片质量（0-1）：<br/>- `null`: 使用默认值（无损压缩使用1.0，有损压缩使用0.8）<br/>- `0-1`: 指定质量值，值越大质量越高但文件越大<br/>- 注意：PNG格式不支持quality参数，会自动转换为WebP（如果支持） |
-| `removeMetadata` | `boolean` | 否 | `true` | 是否移除元数据：<br/>- `true`: 移除元数据（默认，Canvas绘制时自动移除）<br/>- `false`: 理论上保留元数据，但Canvas API不支持保留元数据<br/>- ⚠️ 注意：此参数主要用于文档说明，实际效果：Canvas绘制总是会移除元数据<br/>- 如需保留元数据，需要使用专门的库（如 piexifjs） |
-| `optimizePalette` | `boolean` | 否 | `true` | 是否优化调色板（仅PNG格式有效）：<br/>- `true`: 通过颜色量化减少颜色数量（超过256色时量化到216色），可减小PNG文件大小<br/>- `false`: 不优化调色板<br/>- ⚠️ 注意：可能会略微影响图片质量，但通常肉眼难以察觉 |
-| `compressionLevel` | `number` | 否 | `6` | PNG压缩级别（0-9）：<br/>- ⚠️ **重要限制**：Canvas API不支持直接设置PNG压缩级别参数<br/>- **实际效果**：<br/>  - 对于WebP格式：此参数**完全无效**，只有quality参数有效<br/>  - 对于PNG格式：此参数**也无效**，浏览器端无法控制PNG压缩级别<br/>  - 仅当compressionLevel > 6且输出格式为PNG时，会建议转换为WebP（如果支持）<br/>- **建议**：对于浏览器端压缩，主要使用quality参数控制文件大小<br/>- 如需精确控制PNG压缩级别，必须使用服务端处理工具（如pngquant、optipng、imagemin） |
-| `onComplete` | `Function` | 否 | `null` | 压缩完成回调函数，接收三个参数：<br/>- `compressedFile` (File): 压缩后的 File 对象<br/>- `compressionResult` (Object): 完整的压缩结果对象<br/>- `fileInfo` (Object): Element UI Upload 组件格式的文件信息对象 |
-| `fileName` | `string` | 否 | `null` | 压缩后文件的名称（默认自动生成：原文件名-compressed.扩展名） |
-| `validation` | `Object` | 否 | `null` | 文件验证选项对象（详见下方 validation 对象属性） |
-
-#### validation 对象属性
-
-| 属性名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `allowedFormats` | `string[]` | 否 | 所有支持的格式 | 允许的图片格式列表 |
-| `strict` | `boolean` | 否 | `true` | 是否严格验证格式（同时检查扩展名、MIME类型和文件头） |
-| `maxSize` | `number` | 否 | `null` | 最大文件大小（字节），默认不限制 |
-| `minSize` | `number` | 否 | `0` | 最小文件大小（字节） |
-| `enabled` | `boolean` | 否 | `true` | 是否启用验证（如果传入 validation 对象则启用） |
-
-#### 返回值
-
-**类型：** `Promise<Object>`
-
-返回包含压缩结果和统计信息的对象。
-
-#### 返回对象属性
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `fileInfo` | `Object` | Element UI Upload 组件格式的文件信息（主要使用字段） |
-| `file` | `File` | 压缩后的 File 对象，可直接用于 FormData 上传 |
-| `dataURL` | `string` | 压缩后的图片 DataURL |
-| `blob` | `Blob` | 压缩后的图片 Blob |
-| `gpuAccelerated` | `boolean` | 是否使用了 GPU 加速 |
-| `gpuMethod` | `string` | GPU 加速方法（webgl2/webgl/offscreenCanvas） |
-| `gpuInfo` | `Object` | GPU 支持信息 |
-| `originalWidth` | `number` | 原始宽度（像素） |
-| `originalHeight` | `number` | 原始高度（像素） |
-| `originalFormat` | `string` | 原始格式 |
-| `originalSize` | `number` | 原始大小（字节） |
-| `originalSizeFormatted` | `string` | 格式化后的原始大小 |
-| `compressedWidth` | `number` | 压缩后宽度（像素） |
-| `compressedHeight` | `number` | 压缩后高度（像素） |
-| `compressedFormat` | `string` | 压缩后格式 |
-| `compressedSize` | `number` | 压缩后大小（字节） |
-| `compressedSizeFormatted` | `string` | 格式化后的压缩后大小 |
-| `compressedFileName` | `string` | 压缩后的文件名 |
-| `savedSize` | `number` | 节省的大小（字节） |
-| `savedSizeFormatted` | `string` | 格式化后的节省大小 |
-| `savedPercentage` | `number` | 节省的百分比 |
-| `isEffective` | `boolean` | 是否有效压缩 |
-
-#### fileInfo 对象属性
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `name` | `string` | 文件名 |
-| `size` | `number` | 文件大小（字节） |
-| `sizeFormatted` | `string` | 格式化后的文件大小 |
-| `type` | `string` | MIME 类型 |
-| `uid` | `number` | 唯一标识 |
-| `status` | `string` | 状态（ready/uploading/success/fail） |
-| `raw` | `File` | 原始 File 对象 |
-| `compressionInfo` | `Object` | 压缩相关信息 |
-
-### `losslessCompressBatch(imageSources, options, concurrency)`
-
-批量无损压缩图片。
-
-#### 参数
-
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `imageSources` | `Array<string \| File \| Blob>` | 是 | - | 图片源数组 |
-| `options` | `Object` | 否 | `{}` | 压缩选项（同 `losslessCompress`） |
-| `concurrency` | `number` | 否 | `3` | 并发数量 |
-
-#### 返回值
-
-**类型：** `Promise<Array<Object>>`
-
-返回压缩结果数组，每个元素包含：
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `source` | `string \| File \| Blob` | 原始图片源 |
-| `success` | `boolean` | 是否成功 |
-| `result` | `Object` | 压缩结果（成功时，同 `losslessCompress` 返回值） |
-| `error` | `string` | 错误信息（失败时） |
-
-### `compareLosslessCompression(imageSource, options)`
-
-对比无损压缩效果。
-
-#### 参数
-
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `imageSource` | `string \| File \| Blob` | 是 | - | 图片源 |
-| `options` | `Object` | 否 | `{}` | 压缩选项（同 `losslessCompress`） |
-
-#### 返回值
-
-**类型：** `Promise<Object>`
-
-包含压缩对比信息的对象，包含 `losslessCompress` 的所有返回属性，以及：
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `compressionRatio` | `number` | 压缩比 |
-| `recommendation` | `string` | 建议信息 |
-
-### `checkLosslessCompressionSuitability(imageSource)`
-
-检查图片是否适合无损压缩（可选，现在可以直接使用 `losslessCompress`，无需先检查）。
-
-#### 参数
-
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `imageSource` | `string \| File \| Blob` | 是 | - | 图片源 |
-
-#### 返回值
-
-**类型：** `Promise<Object>`
-
-包含检查结果的对象：
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `format` | `string` | 图片格式 |
-| `size` | `number` | 图片大小（字节） |
-| `sizeFormatted` | `string` | 格式化后的大小 |
-| `isSuitable` | `boolean` | 是否适合无损压缩 |
-| `recommendation` | `string` | 建议信息 |
-
-### `getGPUSupportInfo()`
-
-获取 GPU 加速支持信息。
-
-#### 返回值
-
-**类型：** `Object`
-
-GPU 支持信息：
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `supported` | `boolean` | 是否支持 GPU 加速 |
-| `method` | `string` | GPU 方法（webgl2/webgl/offscreenCanvas） |
-| `details` | `Object` | 详细信息 |
-| `reason` | `string` | 支持或不支持的原因 |
-
-### `downloadCompressedImage(compressedImage, filename)`
-
-下载压缩后的图片。
-
-#### 参数
-
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `compressedImage` | `Blob \| string` | 是 | - | 压缩后的图片（Blob 或 DataURL） |
-| `filename` | `string` | 否 | 时间戳 | 文件名 |
-
-#### 返回值
-
-**类型：** `void`
-
-### `validateImageFormat(file, options)`
-
-验证图片文件格式。
-
-#### 参数
-
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `file` | `File \| Blob` | 是 | - | 文件对象 |
-| `options` | `Object` | 否 | `{}` | 验证选项对象 |
-
-#### options 对象属性
-
-| 属性名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `allowedFormats` | `string[]` | 否 | 所有支持的格式 | 允许的格式列表 |
-| `strict` | `boolean` | 否 | `true` | 是否严格验证（同时检查扩展名、MIME类型和文件头） |
-
-#### 返回值
-
-**类型：** `Promise<Object>`
-
-验证结果：
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `valid` | `boolean` | 是否有效 |
-| `format` | `string \| null` | 检测到的格式 |
-| `errors` | `string[]` | 错误信息数组 |
-
-#### 验证方式
-
-| 方式 | 说明 |
-|------|------|
-| **扩展名检测** | 检查文件扩展名 |
-| **MIME 类型检测** | 检查文件的 MIME 类型 |
-| **文件头检测** | 通过 Magic Number 检测实际文件格式（最可靠） |
-| **严格模式** | 要求扩展名、MIME 类型和文件头检测的格式必须一致 |
-| **宽松模式** | 优先使用文件头，其次 MIME 类型，最后扩展名 |
-
-#### 支持的格式
-
-jpg, jpeg, png, webp, gif, bmp, svg, avif
-
-### `validateImageSize(file, options)`
-
-验证图片文件大小。
-
-#### 参数
-
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `file` | `File \| Blob` | 是 | - | 文件对象 |
-| `options` | `Object` | 否 | `{}` | 验证选项对象 |
-
-#### options 对象属性
-
-| 属性名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `maxSize` | `number` | 否 | `null` | 最大文件大小（字节），默认不限制 |
-| `minSize` | `number` | 否 | `0` | 最小文件大小（字节） |
-
-#### 返回值
-
-**类型：** `Object`
-
-验证结果：
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `valid` | `boolean` | 是否有效 |
-| `size` | `number` | 文件大小（字节） |
-| `errors` | `string[]` | 错误信息数组 |
-
-### `validateImageFile(file, options)`
-
-综合验证图片文件（格式 + 大小）。
-
-#### 参数
-
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `file` | `File \| Blob` | 是 | - | 文件对象 |
-| `options` | `Object` | 否 | `{}` | 验证选项对象（包含 `validateImageFormat` 和 `validateImageSize` 的所有选项） |
-
-#### options 对象属性
-
-| 属性名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `allowedFormats` | `string[]` | 否 | 所有支持的格式 | 允许的格式列表 |
-| `strict` | `boolean` | 否 | `true` | 是否严格验证格式 |
-| `maxSize` | `number` | 否 | `null` | 最大文件大小（字节） |
-| `minSize` | `number` | 否 | `0` | 最小文件大小（字节） |
-
-#### 返回值
-
-**类型：** `Promise<Object>`
-
-验证结果：
-
-| 属性名 | 类型 | 说明 |
-|--------|------|------|
-| `valid` | `boolean` | 是否有效 |
-| `format` | `string \| null` | 检测到的格式 |
-| `size` | `number` | 文件大小（字节） |
-| `errors` | `string[]` | 错误信息数组 |
+---
 
 ## React 组件示例
 
@@ -736,7 +798,7 @@ function ImageCompressor() {
       const compressed = await losslessCompress(file, {
         maxWidth: 1920,
         format: 'webp',  // 或 'png' 或 null（自动选择）
-      quality: 0.85,   // 可选：图片质量（0-1）
+        quality: 0.85,   // 可选：图片质量（0-1）
         // 可选：使用回调函数自动上传
         onComplete: async (compressedFile, compressionResult, fileInfo) => {
           const formData = new FormData();
@@ -775,117 +837,7 @@ function ImageCompressor() {
 }
 ```
 
-### 带文件验证的示例
-
-```jsx
-import { useState } from 'react';
-import { losslessCompress, validateImageFile } from 'rv-image-optimize/lossless';
-
-function ImageCompressorWithValidation() {
-  const [compressing, setCompressing] = useState(false);
-  const [result, setResult] = useState(null);
-  const [errors, setErrors] = useState([]);
-  
-  // 验证配置
-  const validationConfig = {
-    allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-    strict: true, // 严格验证
-    maxSize: 10 * 1024 * 1024, // 10MB
-    minSize: 0,
-  };
-  
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-    
-    // 先验证所有文件
-    const validFiles = [];
-    const invalidFiles = [];
-    
-    for (const file of files) {
-      const validationResult = await validateImageFile(file, validationConfig);
-      if (validationResult.valid) {
-        validFiles.push(file);
-      } else {
-        invalidFiles.push({
-          file,
-          errors: validationResult.errors,
-        });
-      }
-    }
-    
-    // 显示验证错误
-    if (invalidFiles.length > 0) {
-      const errorMessages = invalidFiles.map(item => 
-        `${item.file.name}: ${item.errors.join('; ')}`
-      );
-      setErrors(errorMessages);
-      alert(`以下文件验证失败：\n\n${errorMessages.join('\n')}`);
-    } else {
-      setErrors([]);
-    }
-    
-    // 如果没有有效文件，直接返回
-    if (validFiles.length === 0) {
-      return;
-    }
-    
-    // 处理第一个有效文件（或批量处理所有有效文件）
-    setCompressing(true);
-    try {
-      const compressed = await losslessCompress(validFiles[0], {
-        maxWidth: 1920,
-        format: 'webp',  // 或 'png' 或 null（自动选择）
-      quality: 0.85,   // 可选：图片质量（0-1）
-        // 可以再次传递验证配置（可选，如果已经验证过可以禁用）
-        validation: {
-          ...validationConfig,
-          enabled: false, // 如果已经在前面验证过，这里可以禁用
-        },
-      });
-      setResult(compressed);
-    } catch (error) {
-      console.error('压缩失败:', error);
-      alert('压缩失败: ' + error.message);
-    } finally {
-      setCompressing(false);
-    }
-  };
-  
-  return (
-    <div>
-      <input type="file" accept="image/*" multiple onChange={handleFileUpload} />
-      <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
-        <strong>文件验证规则：</strong>
-        <ul>
-          <li>支持的格式：{validationConfig.allowedFormats.join(', ').toUpperCase()}</li>
-          <li>最大文件大小：{(validationConfig.maxSize / 1024 / 1024).toFixed(0)}MB</li>
-          <li>验证模式：{validationConfig.strict ? '严格模式' : '宽松模式'}</li>
-        </ul>
-      </div>
-      {errors.length > 0 && (
-        <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#ffebee', borderRadius: '4px' }}>
-          <strong>验证失败的文件：</strong>
-          <ul>
-            {errors.map((error, index) => (
-              <li key={index} style={{ color: '#c62828' }}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {compressing && <p>正在压缩...</p>}
-      {result && (
-        <div>
-          <p>原始大小: {result.originalSizeFormatted}</p>
-          <p>压缩后大小: {result.compressedSizeFormatted}</p>
-          <p>节省: {result.savedSizeFormatted} ({result.savedPercentage}%)</p>
-          <img src={result.dataURL} alt="压缩后的图片" />
-        </div>
-      )}
-    </div>
-  );
-}
-```
+---
 
 ## Vue 组件示例
 
@@ -942,6 +894,8 @@ const handleFileUpload = async (e) => {
 </script>
 ```
 
+---
+
 ## 为什么 JPEG 格式不支持真正的无损压缩？
 
 ### JPEG 压缩算法的工作原理
@@ -988,6 +942,8 @@ JPEG（Joint Photographic Experts Group）是一种**有损压缩**格式，它�
    - JPEG/JPG 已经丢失了一些信息，转换无法恢复这些信息
    - PNG/WebP 的压缩算法不如 JPEG 的有损压缩高效
 
+---
+
 ## 注意事项
 
 1. **浏览器环境**：无损压缩功能仅在浏览器环境中可用，不支持 Node.js 环境
@@ -1018,6 +974,8 @@ JPEG（Joint Photographic Experts Group）是一种**有损压缩**格式，它�
     - **PNG**：无损格式，文件通常较大，适合需要无损的场景
     - **自动选择**：如果原图是 PNG 或 WebP，保持原格式；否则选择最佳格式（WebP > PNG）
 
+---
+
 ## 与 imageOptimize.js 的关系
 
 `losslessCompress.js` 继承并使用了 `imageOptimize.js` 中的以下功能：
@@ -1030,7 +988,8 @@ JPEG（Joint Photographic Experts Group）是一种**有损压缩**格式，它�
 
 因此，无损压缩功能可以无缝配合现有的图片优化功能使用。
 
+---
+
 ## 更多示例
 
 详细的使用示例请参考 `example/lossless-compress-example.js` 文件。
-

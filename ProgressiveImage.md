@@ -15,6 +15,8 @@
 
 在 React 中，通过 `ProgressiveImage` 组件实现；在 Vue 中，使用工具函数 `loadImageProgressive` 手动实现。
 
+---
+
 ## React 组件使用方式
 
 `ProgressiveImage` 是 React 专属组件，导入自 `rv-image-optimize`。它自动处理渐进式加载、占位符和错误显示。
@@ -29,36 +31,39 @@ import { ProgressiveImage } from 'rv-image-optimize';
 import 'rv-image-optimize/styles'; // 导入样式（可选，自定义样式见 STYLE_CUSTOMIZATION.md）
 ```
 
-### 参数说明
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `src` | `string` | `''` | 原始图片URL（必填）。 |
-| `alt` | `string` | `''` | 图片alt文本。 |
-| `width` | `string \| number` | `'100%'` | 容器宽度（支持像素或百分比）。 |
-| `height` | `string \| number` | `'auto'` | 容器高度（支持像素或'auto'）。 |
-| `className` | `string` | `''` | 容器类名，用于自定义样式。 |
-| `imageClassName` | `string` | `''` | 图片元素类名。 |
-| `imageStyle` | `Object` | `{}` | 图片元素的额外样式。 |
-| `stages` | `Array<Object>` | `[{ width: 20, quality: 20 }, { width: 400, quality: 50 }, { width: null, quality: 80 }]` | 加载阶段配置数组，每个对象包含 `width`、`height`、`quality`、`format`、`autoFormat` 等（详见下文）。 |
-| `transitionDuration` | `number` | `300` | 过渡动画时间（毫秒）。 |
-| `timeout` | `number` | `30000` | 每个阶段的加载超时时间（毫秒）。 |
-| `showPlaceholder` | `boolean` | `true` | 是否显示初始占位符图标。 |
-| `onStageComplete` | `Function` | `null` | 阶段完成回调：`(stageIndex, stageUrl, stage) => void`。 |
-| `onComplete` | `Function` | `null` | 全部完成回调：`(finalUrl) => void`。 |
-| `onError` | `Function` | `null` | 错误回调：`(error, stageIndex) => void`。 |
-| `onLoad` | `Function` | `null` | 最终加载完成回调：`(event) => void`。 |
-| `enableCache` | `boolean` | `true` | 是否启用 IndexedDB 缓存。启用后，已加载的图片会被缓存，下次访问时直接从缓存加载。
+### ProgressiveImage 组件参数
 
-**stages 配置对象说明**（每个阶段）：
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `width` | `number \| null` | `null` | 图片宽度（像素），`null` 表示原图宽度。 |
-| `height` | `number \| null` | `null` | 图片高度（像素），`null` 表示按比例。 |
-| `quality` | `number` | `80` | 图片质量（0-100）。 |
-| `format` | `string \| null` | `null` | 输出格式：`'webp' \| 'jpg' \| 'png' \| 'avif'`，`null` 表示自动。 |
-| `autoFormat` | `boolean` | `true` | 是否自动选择最佳格式（AVIF > WebP > JPG）。 |
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `src` | `string` | ✅ | `''` | 原始图片URL（必填） |
+| `alt` | `string` | ❌ | `''` | 图片alt文本 |
+| `width` | `string \| number` | ❌ | `'100%'` | 容器宽度（支持像素或百分比） |
+| `height` | `string \| number` | ❌ | `'auto'` | 容器高度（支持像素或'auto'） |
+| `className` | `string` | ❌ | `''` | 容器类名，用于自定义样式 |
+| `imageClassName` | `string` | ❌ | `''` | 图片元素类名 |
+| `imageStyle` | `Object` | ❌ | `{}` | 图片元素的额外样式 |
+| `stages` | `Array<StageConfig>` | ❌ | `[{ width: 20, quality: 20 }, { width: 400, quality: 50 }, { width: null, quality: 80 }]` | 加载阶段配置数组（详见下方 StageConfig 类型） |
+| `transitionDuration` | `number` | ❌ | `300` | 过渡动画时间（毫秒） |
+| `timeout` | `number` | ❌ | `30000` | 每个阶段的加载超时时间（毫秒） |
+| `showPlaceholder` | `boolean` | ❌ | `true` | 是否显示初始占位符图标 |
+| `enableCache` | `boolean` | ❌ | `true` | 是否启用 IndexedDB 缓存 |
+| `onStageComplete` | `Function` | ❌ | `null` | 阶段完成回调：`(stageIndex: number, stageUrl: string, stage: StageConfig) => void` |
+| `onComplete` | `Function` | ❌ | `null` | 全部完成回调：`(finalUrl: string) => void` |
+| `onError` | `Function` | ❌ | `null` | 错误回调：`(error: Error, stageIndex: number) => void` |
+| `onLoad` | `Function` | ❌ | `null` | 最终加载完成回调：`(event: Event) => void` |
 
-### 使用示例（基于 App.jsx 中的实际代码）
+### StageConfig 类型（stages 数组中的每个对象）
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `width` | `number \| null` | ❌ | `null` | 图片宽度（像素），`null` 表示原图宽度 |
+| `height` | `number \| null` | ❌ | `null` | 图片高度（像素），`null` 表示按比例 |
+| `quality` | `number` | ❌ | `80` | 图片质量（0-100） |
+| `format` | `string \| null` | ❌ | `null` | 输出格式：`'webp' \| 'jpg' \| 'png' \| 'avif'`，`null` 表示自动 |
+| `autoFormat` | `boolean` | ❌ | `true` | 是否自动选择最佳格式（AVIF > WebP > JPG） |
+
+### 使用示例
+
 ```jsx
 import { ProgressiveImage } from 'rv-image-optimize';
 import 'rv-image-optimize/styles';
@@ -92,27 +97,66 @@ function App() {
 }
 ```
 
+---
+
 ## Vue2 和 Vue3 工具函数使用方式
 
 `ProgressiveImage` 是 React 组件，无法直接在 Vue 中使用。但您可以使用 `loadImageProgressive` 工具函数手动实现渐进式加载（从模糊到清晰）。该函数返回 Promise，支持阶段回调。
 
 ### 导入
 ```javascript
-import { loadImageProgressive, generateBlurPlaceholderUrl } from 'rv-image-optimize';
+import { loadImageProgressive, generateBlurPlaceholderUrl } from 'rv-image-optimize/utils-only';
 ```
 
-### 参数说明（loadImageProgressive 函数）
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `url` | `string` | 必填 | 原始图片URL。 |
-| `options.stages` | `Array<Object>` | `[{ width: 20, quality: 20, blur: 10 }, { width: 400, quality: 50, blur: 3 }, { width: null, quality: 80, blur: 0 }]` | 加载阶段配置（同 React 组件）。 |
-| `options.timeout` | `number` | `30000` | 每个阶段超时（毫秒）。 |
-| `options.onStageComplete` | `Function` | `null` | 阶段完成回调：`(stageIndex, stageUrl, stage) => void`。 |
-| `options.onComplete` | `Function` | `null` | 全部完成回调：`(finalUrl) => void`。 |
-| `options.onError` | `Function` | `null` | 错误回调：`(error, stageIndex) => void`。 |
-| `options.enableCache` | `boolean` | `true` | 是否启用 IndexedDB 缓存。启用后，已加载的图片会被缓存，下次访问时直接从缓存加载。
+### loadImageProgressive 函数
+
+#### 函数签名
+```typescript
+loadImageProgressive(
+  url: string,
+  options?: LoadImageProgressiveOptions
+): Promise<LoadImageProgressiveResult>
+```
+
+#### 参数说明
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `url` | `string` | ✅ | - | 原始图片URL |
+| `options` | `LoadImageProgressiveOptions` | ❌ | `{}` | 配置选项对象（详见下方） |
+
+#### LoadImageProgressiveOptions 类型
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `stages` | `Array<StageConfig>` | ❌ | `[{ width: 20, quality: 20, blur: 10 }, { width: 400, quality: 50, blur: 3 }, { width: null, quality: 80, blur: 0 }]` | 加载阶段配置数组（同 React 组件） |
+| `timeout` | `number` | ❌ | `30000` | 每个阶段超时（毫秒） |
+| `enableCache` | `boolean` | ❌ | `true` | 是否启用 IndexedDB 缓存 |
+| `urlTransformer` | `Function` | ❌ | `null` | URL转换函数：`(url: string, stage: StageConfig, stageIndex: number) => string` |
+| `onStageComplete` | `Function` | ❌ | `null` | 阶段完成回调：`(stageIndex: number, stageUrl: string, stage: StageConfig) => void` |
+| `onStageError` | `Function` | ❌ | `null` | 阶段错误回调：`(error: Error, stageIndex: number, stageUrl: string, stage: StageConfig) => string \| null`，返回降级URL或null |
+| `onComplete` | `Function` | ❌ | `null` | 全部完成回调：`(finalUrl: string) => void` |
+| `onError` | `Function` | ❌ | `null` | 错误回调：`(error: Error, stageIndex: number) => void` |
+
+#### 返回值类型：LoadImageProgressiveResult
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `url` | `string` | 最终图片URL |
+| `stages` | `Array<StageResult>` | 阶段结果数组 |
+| `success` | `boolean` | 是否成功 |
+| `error` | `Error \| null` | 错误信息（失败时） |
+
+#### StageResult 类型
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `url` | `string` | 阶段图片URL |
+| `stage` | `StageConfig` | 阶段配置对象 |
+| `loaded` | `boolean` | 是否已加载 |
 
 ### Vue3 使用示例（Composition API）
+
 ```vue
 <template>
   <div>
@@ -124,7 +168,7 @@ import { loadImageProgressive, generateBlurPlaceholderUrl } from 'rv-image-optim
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { loadImageProgressive, generateBlurPlaceholderUrl } from 'rv-image-optimize';
+import { loadImageProgressive, generateBlurPlaceholderUrl } from 'rv-image-optimize/utils-only';
 
 const src = 'https://example.com/image.jpg';
 const alt = '渐进式加载图片';
@@ -178,6 +222,7 @@ const imageStyle = {
 ```
 
 ### Vue2 使用示例（Options API）
+
 ```vue
 <template>
   <div>
@@ -188,9 +233,10 @@ const imageStyle = {
 </template>
 
 <script>
-import { loadImageProgressive, generateBlurPlaceholderUrl } from 'rv-image-optimize';
+import { loadImageProgressive, generateBlurPlaceholderUrl } from 'rv-image-optimize/utils-only';
 
 export default {
+  name: 'ImageComponent',
   data() {
     return {
       src: 'https://example.com/image.jpg',
@@ -247,61 +293,70 @@ export default {
 </script>
 ```
 
+---
+
 ## 批量渐进式加载 (loadImagesProgressively)
 
 如果需要同时加载多张图片（例如图片画廊），可以使用 `loadImagesProgressively` 函数。它支持高并发、优先级排序、错误重试和进度回调，实现批量从模糊到清晰的渐进式加载。
 
 ### 导入
 ```javascript
-import { loadImagesProgressively } from 'rv-image-optimize';
+import { loadImagesProgressively } from 'rv-image-optimize/utils-only';
 ```
 
-### 函数签名
+### loadImagesProgressively 函数
+
+#### 函数签名
 ```typescript
 loadImagesProgressively(
-  imageList: Array<string | {url: string, priority?: number}>,
-  options?: {
-    stages?: Array<Object>,
-    concurrency?: number,
-    timeout?: number,
-    priority?: boolean,
-    retryOnError?: boolean,
-    maxRetries?: number,
-    onProgress?: (current: number, total: number, result: LoadResult) => void,
-    onItemComplete?: (result: LoadResult) => void,
-    onItemStageComplete?: (stageResult: StageResult, stageIndex: number) => void
-  }
+  imageList: Array<string | ImageItem>,
+  options?: LoadImagesProgressivelyOptions
 ): Promise<Array<LoadResult>>
 ```
 
-### 参数说明
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `imageList` | `Array<string \| Object>` | 必填 | 图片URL数组，或包含 `url` 和可选 `priority` 的对象数组（priority 值越大优先级越高）。 |
-| `options.stages` | `Array<Object>` | `[{ width: 20, quality: 20 }, { width: 400, quality: 50 }, { width: null, quality: 80 }]` | 每个图片的加载阶段配置（同 loadImageProgressive）。 |
-| `options.concurrency` | `number` | `10` | 并发加载数量。 |
-| `options.timeout` | `number` | `30000` | 每个阶段超时（毫秒）。 |
-| `options.priority` | `boolean` | `true` | 是否按优先级加载。 |
-| `options.retryOnError` | `boolean` | `false` | 是否重试失败的加载。 |
-| `options.maxRetries` | `number` | `1` | 最大重试次数。 |
-| `options.onProgress` | `Function` | `null` | 整体进度回调。 |
-| `options.onItemComplete` | `Function` | `null` | 单个图片完成回调。 |
-| `options.onItemStageComplete` | `Function` | `null` | 单个图片阶段完成回调。 |
-| `options.enableCache` | `boolean` | `true` | 是否启用 IndexedDB 缓存。启用后，已加载的图片会被缓存，下次访问时直接从缓存加载。
+#### 参数说明
 
-### 返回值 (LoadResult)
-```typescript
-{
-  url: string,              // 最终图片URL
-  success: boolean,         // 是否成功
-  error: Error | null,      // 错误信息
-  index: number,            // 原始索引
-  retries: number,          // 重试次数
-  stages?: Array<{ url: string, stage: Object, loaded: boolean }>  // 阶段信息
-}
-```
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `imageList` | `Array<string \| ImageItem>` | ✅ | - | 图片URL数组，或包含 `url` 和可选 `priority` 的对象数组（priority 值越大优先级越高） |
 
-### 通用使用示例
+#### ImageItem 类型
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `url` | `string` | ✅ | - | 图片URL |
+| `priority` | `number` | ❌ | `0` | 优先级（值越大优先级越高） |
+
+#### LoadImagesProgressivelyOptions 类型
+
+| 属性名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `stages` | `Array<StageConfig>` | ❌ | `[{ width: 20, quality: 20 }, { width: 400, quality: 50 }, { width: null, quality: 80 }]` | 每个图片的加载阶段配置（同 loadImageProgressive） |
+| `concurrency` | `number` | ❌ | `10` | 并发加载数量 |
+| `timeout` | `number` | ❌ | `30000` | 每个阶段超时（毫秒） |
+| `priority` | `boolean` | ❌ | `true` | 是否按优先级加载 |
+| `retryOnError` | `boolean` | ❌ | `false` | 是否重试失败的加载 |
+| `maxRetries` | `number` | ❌ | `1` | 最大重试次数 |
+| `enableCache` | `boolean` | ❌ | `true` | 是否启用 IndexedDB 缓存 |
+| `urlTransformer` | `Function` | ❌ | `null` | URL转换函数：`(url: string, stage: StageConfig, stageIndex: number) => string` |
+| `onStageError` | `Function` | ❌ | `null` | 阶段错误回调：`(error: Error, stageIndex: number, stageUrl: string, stage: StageConfig) => string \| null` |
+| `onProgress` | `Function` | ❌ | `null` | 整体进度回调：`(current: number, total: number, result: LoadResult) => void` |
+| `onItemComplete` | `Function` | ❌ | `null` | 单个图片完成回调：`(result: LoadResult) => void` |
+| `onItemStageComplete` | `Function` | ❌ | `null` | 单个图片阶段完成回调：`(stageResult: StageResult, stageIndex: number) => void` |
+
+#### 返回值类型：Array<LoadResult>
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `url` | `string` | 最终图片URL |
+| `success` | `boolean` | 是否成功 |
+| `error` | `Error \| null` | 错误信息（失败时） |
+| `index` | `number` | 原始索引 |
+| `retries` | `number` | 重试次数 |
+| `stages` | `Array<StageResult>` | 阶段信息（可选） |
+
+### 使用示例
+
 ```javascript
 const imageUrls = [
   'https://example.com/image1.jpg',
@@ -325,9 +380,10 @@ const results = await loadImagesProgressively(imageUrls, {
 ```
 
 ### React 集成示例
+
 ```jsx
 import { useState, useEffect } from 'react';
-import { loadImagesProgressively } from 'rv-image-optimize';
+import { loadImagesProgressively } from 'rv-image-optimize/utils-only';
 
 function ImageGallery({ imageUrls }) {
   const [images, setImages] = useState([]);
@@ -354,6 +410,7 @@ function ImageGallery({ imageUrls }) {
 ```
 
 ### Vue3 集成示例
+
 ```vue
 <template>
   <div>
@@ -363,7 +420,7 @@ function ImageGallery({ imageUrls }) {
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { loadImagesProgressively } from 'rv-image-optimize';
+import { loadImagesProgressively } from 'rv-image-optimize/utils-only';
 
 const images = ref([]);
 const imageUrls = ['url1', 'url2']; // 您的图片列表
@@ -378,6 +435,8 @@ onMounted(async () => {
 });
 </script>
 ```
+
+---
 
 ## IndexedDB 缓存功能
 
@@ -402,26 +461,10 @@ onMounted(async () => {
 />
 ```
 
-#### LazyImage 组件（支持渐进式加载 + 缓存）
-
-```jsx
-<LazyImage
-  src="https://example.com/image.jpg"
-  progressive={true}
-  progressiveEnableCache={true}  // 启用缓存（默认 true）
-  progressiveStages={[
-    { width: 50, height: 50 },
-    { width: 200, height: 200 },
-    { width: null, height: null }
-  ]}
-  // ... 其他配置
-/>
-```
-
 #### 工具函数
 
 ```javascript
-import { loadImageProgressive, loadImagesProgressively } from 'rv-image-optimize';
+import { loadImageProgressive, loadImagesProgressively } from 'rv-image-optimize/utils-only';
 
 // 单个图片
 await loadImageProgressive(url, {
@@ -446,7 +489,7 @@ import {
   getCache, 
   deleteCache,
   cleanExpiredCache 
-} from 'rv-image-optimize';
+} from 'rv-image-optimize/utils-only';
 
 // 图片缓存键格式：image:{url}
 const imageUrl = 'https://example.com/image.jpg';
@@ -490,5 +533,3 @@ await cleanExpiredCache();
 - **二次加载**：从缓存读取，加载速度提升 10-100 倍
 - **减少流量**：避免重复下载相同图片，节省用户流量
 - **离线支持**：已缓存的图片在离线状态下也能正常显示
-
-如果您有其他自定义需求，请提供更多细节！
