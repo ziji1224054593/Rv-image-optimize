@@ -12,6 +12,8 @@ Uncaught TypeError: Cannot read properties of undefined (reading 'ReactCurrentDi
 
 在 Vue 项目中，请使用 **工具函数专用入口** `utils-only`，它不包含任何 React 组件代码。
 
+**注意：** 现在项目也提供了专门的 Vue 组件 `LazyImage.vue`，可以直接在 Vue 项目中使用。
+
 ## 使用方法
 
 ### 1. 安装
@@ -20,7 +22,96 @@ Uncaught TypeError: Cannot read properties of undefined (reading 'ReactCurrentDi
 npm install rv-image-optimize
 ```
 
-### 2. 导入工具函数
+### 2. 使用 Vue 组件（推荐）
+
+项目提供了专门的 Vue 组件 `LazyImage.vue`，可以直接在 Vue 项目中使用：
+
+```vue
+<template>
+  <div class="app-container">
+    <h1>图片优化示例</h1>
+    
+    <div class="demo-section">
+      <h2>懒加载 + 渐进式加载示例</h2>
+      <LazyImage
+        :src="imageUrl"
+        :alt="'渐进式加载图片'"
+        width="100%"
+        :height="300"
+        root-margin="50px"
+        :progressive="true"
+        :progressive-stages="[
+          { width: 20, quality: 20, blur: 10 },   // 阶段1: 极速模糊图
+          { width: 400, quality: 50, blur: 3 },   // 阶段2: 中等质量
+          { width: null, quality: 80, blur: 1 }   // 阶段3: 最终质量（原图）
+        ]"
+        :progressive-transition-duration="300"
+        :progressive-timeout="30000"
+        @progressive-stage-complete="handleProgressiveStageComplete"
+        @load="handleImageLoad"
+      />
+    </div>
+  </div>
+</template>
+
+<script setup>
+import LazyImage from "rv-image-optimize/src/LazyImage.vue"
+
+const imageUrl = "https://example.com/image.jpg"
+
+const handleProgressiveStageComplete = (stageIndex, stageUrl, stage) => {
+  // 可以在这里处理阶段完成事件
+  console.log(`阶段 ${stageIndex + 1} 完成`)
+}
+
+const handleImageLoad = (event, optimizationInfo) => {
+  console.log('图片加载成功', optimizationInfo)
+}
+</script>
+
+<style scoped>
+@import 'rv-image-optimize/src/LazyImage.css';
+</style>
+```
+
+### 3. 组件属性说明
+
+`LazyImage.vue` 组件支持以下属性：
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `src` | String | '' | 图片原始URL |
+| `alt` | String | '' | 图片alt文本 |
+| `width` | String/Number | '100%' | 容器宽度 |
+| `height` | String/Number | 'auto' | 容器高度 |
+| `immediate` | Boolean | false | 是否立即加载（不懒加载） |
+| `rootMargin` | String | '50px' | IntersectionObserver的rootMargin |
+| `progressive` | Boolean | false | 是否启用渐进式加载 |
+| `progressiveStages` | Array | 见默认值 | 渐进式加载阶段配置 |
+| `progressiveTransitionDuration` | Number | 300 | 过渡动画时间（毫秒） |
+| `progressiveTimeout` | Number | 30000 | 每个阶段加载超时时间 |
+| `progressiveEnableCache` | Boolean | true | 是否启用缓存 |
+
+### 4. 事件说明
+
+组件支持以下事件：
+- `@load`: 图片加载完成事件
+- `@progressive-stage-complete`: 渐进式加载每个阶段完成事件
+- `@error`: 图片加载失败事件
+- `@click`: 图片点击事件
+- `@optimization`: 优化信息事件
+
+### 5. 查看完整示例
+
+请查看项目中的 `test.vue` 文件，其中包含了 `LazyImage.vue` 组件的完整使用示例：
+
+- **文件位置**: `test.vue`
+- **示例内容**: 包含懒加载、渐进式加载、多图片展示等完整示例
+- **样式导入**: 展示了如何正确导入组件的样式文件
+
+### 6. 使用工具函数（替代方案）
+
+如果不想使用 Vue 组件，也可以使用工具函数：
 
 ```javascript
 // ✅ 正确：使用 utils-only 入口（推荐）
@@ -36,33 +127,7 @@ import {
 // import { LazyImage } from 'rv-image-optimize'; // 这会导致错误
 ```
 
-### 3. 在 Vue 组件中使用
-
-```vue
-<template>
-  <div>
-    <img :src="optimizedUrl" alt="示例图片" />
-  </div>
-</template>
-
-<script setup>
-import { ref, computed } from 'vue';
-import { optimizeImageUrl } from 'rv-image-optimize/utils-only';
-
-const originalUrl = ref('https://example.com/image.jpg');
-
-const optimizedUrl = computed(() => {
-  return optimizeImageUrl(originalUrl.value, {
-    width: 800,
-    height: 600,
-    quality: 80,
-    format: 'webp'
-  });
-});
-</script>
-```
-
-### 4. 可用的工具函数
+### 7. 可用的工具函数
 
 从 `utils-only` 入口可以导入以下工具函数：
 
@@ -99,168 +164,15 @@ const optimizedUrl = computed(() => {
 - `loadImageWithCache(url)` - 使用缓存加载图片
 - `loadImageProgressiveWithCache(url, options)` - 使用缓存渐进式加载
 
-### 5. 创建 Vue 组件包装器（可选）
-
-如果需要类似 React 组件的功能，可以基于工具函数创建 Vue 组件：
-
-```vue
-<template>
-  <div class="lazy-image-container" :style="containerStyle">
-    <img
-      v-if="shouldLoad && optimizedSrc"
-      :src="optimizedSrc"
-      :alt="alt"
-      :class="imageClassName"
-      :style="imageStyle"
-      @load="handleLoad"
-      @error="handleError"
-    />
-    <div v-if="!shouldLoad" class="placeholder">加载中...</div>
-  </div>
-</template>
-
-<script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { optimizeImageUrl, loadImageWithCache } from 'rv-image-optimize/utils-only';
-
-const props = defineProps({
-  src: String,
-  alt: String,
-  width: [String, Number],
-  height: [String, Number],
-  optimize: Object,
-});
-
-const shouldLoad = ref(false);
-const optimizedSrc = ref('');
-
-const containerStyle = computed(() => ({
-  width: typeof props.width === 'number' ? `${props.width}px` : props.width,
-  height: typeof props.height === 'number' ? `${props.height}px` : props.height,
-}));
-
-// 使用 Intersection Observer 实现懒加载
-let observer = null;
-
-onMounted(() => {
-  if (typeof window !== 'undefined' && window.IntersectionObserver) {
-    observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          shouldLoad.value = true;
-          loadImage();
-          observer?.unobserve(entry.target);
-        }
-      });
-    });
-    
-    const container = document.querySelector('.lazy-image-container');
-    if (container) {
-      observer.observe(container);
-    }
-  } else {
-    shouldLoad.value = true;
-    loadImage();
-  }
-});
-
-onUnmounted(() => {
-  observer?.disconnect();
-});
-
-const loadImage = async () => {
-  try {
-    const url = props.optimize 
-      ? optimizeImageUrl(props.src, props.optimize)
-      : props.src;
-    
-    // 尝试从缓存加载
-    const cachedUrl = await loadImageWithCache(url);
-    optimizedSrc.value = cachedUrl || url;
-  } catch (error) {
-    console.error('图片加载失败:', error);
-    optimizedSrc.value = props.src;
-  }
-};
-
-const handleLoad = () => {
-  // 图片加载成功
-};
-
-const handleError = () => {
-  // 图片加载失败
-};
-</script>
-```
-
 ## 注意事项
 
-1. **不要导入 React 组件**：`LazyImage` 和 `ProgressiveImage` 是 React 组件，不能在 Vue 中使用
-2. **使用工具函数**：所有图片优化功能都可以通过工具函数实现
-3. **样式文件**：如果需要样式，可以导入 `rv-image-optimize/styles`
-4. **缓存功能**：工具函数支持 IndexedDB 缓存，可以提升性能
-
-## 完整示例
-
-```vue
-<template>
-  <div class="image-gallery">
-    <div v-for="(image, index) in images" :key="index" class="image-item">
-      <img 
-        :src="getOptimizedUrl(image.url)" 
-        :alt="image.alt"
-        @load="onImageLoad(index)"
-      />
-      <div v-if="imageStats[index]" class="stats">
-        节省: {{ imageStats[index].savedPercentage }}%
-      </div>
-    </div>
-  </div>
-</template>
-
-<script setup>
-import { ref, computed } from 'vue';
-import { 
-  optimizeImageUrl, 
-  compareImageSizes,
-  formatFileSize 
-} from 'rv-image-optimize/utils-only';
-
-const images = ref([
-  { url: 'https://example.com/image1.jpg', alt: '图片1' },
-  { url: 'https://example.com/image2.jpg', alt: '图片2' },
-]);
-
-const imageStats = ref({});
-
-const getOptimizedUrl = (url) => {
-  return optimizeImageUrl(url, {
-    width: 800,
-    quality: 80,
-    format: 'webp'
-  });
-};
-
-const onImageLoad = async (index) => {
-  const image = images.value[index];
-  try {
-    const comparison = await compareImageSizes(
-      image.url,
-      getOptimizedUrl(image.url)
-    );
-    imageStats.value[index] = {
-      savedPercentage: comparison.savedPercentage,
-      savedSize: formatFileSize(comparison.savedSize),
-    };
-  } catch (error) {
-    console.error('获取图片统计失败:', error);
-  }
-};
-</script>
-```
+1. **推荐使用 Vue 组件**: `LazyImage.vue` 组件专门为 Vue 设计，使用更方便
+2. **查看示例文件**: 完整的使用示例请参考 `test.vue` 文件
+3. **样式文件**: 使用组件时记得导入样式文件 `@import 'rv-image-optimize/src/LazyImage.css'`
+4. **缓存功能**: 工具函数支持 IndexedDB 缓存，可以提升性能
 
 ## 更多信息
 
 - 查看 [README.md](./README.md) 了解完整的 API 文档
 - 查看 [lib/imageOptimize.js](./lib/imageOptimize.js) 了解所有可用的工具函数
-
+- 查看 `test.vue` 文件获取完整的 Vue 组件使用示例
