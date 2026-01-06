@@ -1,0 +1,77 @@
+name: Sync from Gitee
+
+on:
+  workflow_dispatch:  # 手动触发按钮
+  schedule:
+    - cron: '*/30 * * * *'  # 每30分钟自动同步一次
+
+permissions:
+  contents: write  # 给予写入权限
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # 第一步：检出GitHub仓库的master分支
+    - name: Checkout GitHub repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        ref: master  # 你的分支是master
+        fetch-depth: 0  # 获取所有历史记录
+        
+    # 第二步：配置Git用户信息
+    - name: Setup Git
+      run: |
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "actions@github.com"
+        
+    # 第三步：从Gitee同步代码
+    - name: Pull from Gitee
+      env:
+        GITEE_USER: ${{ secrets.GITEE_USER }}
+        GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+      run: |
+        echo "开始从Gitee同步..."
+        echo "Gitee用户名: $GITEE_USER"
+        
+        # 添加Gitee远程仓库（如果已存在则忽略）
+        git remote add gitee https://$GITEE_USER:$GITEE_TOKEN@gitee.com/imageOptimize/Rv-image-optimize.git || true
+        
+        # 显示当前状态
+        echo "当前分支: $(git branch --show-current)"
+        echo "远程仓库:"
+        git remote -v
+        
+        # 从Gitee拉取最新代码
+        echo "从Gitee拉取master分支..."
+        git fetch gitee master
+        
+        # 合并Gitee的master分支到本地
+        echo "合并代码..."
+        git merge gitee/master --allow-unrelated-histories --no-edit || {
+          echo "合并过程中可能存在冲突，继续执行..."
+          # 如果有冲突，采用Gitee的版本
+          git checkout --ours . || true
+          git add . || true
+        }
+        
+        echo "从Gitee同步完成"
+        
+    # 第四步：推送到GitHub
+    - name: Push to GitHub
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "开始推送到GitHub..."
+        
+        # 显示推送前的状态
+        echo "推送前的状态:"
+        git status --short
+        
+        # 使用GitHub Token推送
+        echo "推送到GitHub仓库..."
+        git push https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git master
+        
+        echo "✅ 同步完成！"
