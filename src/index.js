@@ -53,5 +53,23 @@ export {
   loadImageProgressiveWithCache,
 } from '../lib/imageCache.js';
 
+// 导出上传编排辅助函数
+export {
+  UPLOAD_VALUE_TYPES,
+  UPLOAD_PLACEHOLDERS,
+  normalizeUploadConfig,
+  buildUploadContext,
+  buildUploadRequestHeaders,
+  buildUploadFormData,
+  createUploadPayloadPreview,
+  uploadFileWithConfig,
+  uploadCompressedFile,
+} from '../lib/uploadCore.js';
+
+// 导出浏览器压缩后上传能力
+export {
+  compressAndUploadFiles,
+} from '../lib/uploadPipeline.js';
+
 // 导入样式（需要在构建时处理）
 import './LazyImage.css';

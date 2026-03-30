@@ -1,12 +1,13 @@
 {
   "name": "rv-image-optimize",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs.js",
   "module": "./dist/image-optimize.es.js",
   "browser": "./dist/image-optimize.umd.js",
   "files": [
+    "bin",
     "dist",
     "src",
     "lib",
@@ -30,6 +31,9 @@
     },
     "./utils": "./lib/imageOptimize.js",
     "./lossless": "./lib/losslessCompress.js",
+    "./node-compress": "./lib/nodeCompress.js",
+    "./upload-core": "./lib/uploadCore.js",
+    "./upload": "./lib/uploadPipeline.js",
     "./cache": "./lib/imageCache.js",
     "./LazyImage": "./src/LazyImage.jsx",
     "./ProgressiveImage": "./src/ProgressiveImage.jsx",
@@ -41,7 +45,11 @@
     "dev": "vite",
     "build": "vite build && node scripts/build-utils-only.js",
     "build:static": "vite build --mode static",
+    "cli": "node ./bin/rv-image-optimize.js",
     "prepublishOnly": "npm run build"
+  },
+  "bin": {
+    "rv-image-optimize": "./bin/rv-image-optimize.js"
   },
   "keywords": [
     "image",
@@ -66,8 +74,11 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.0.8",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "vite": "^5.0.8"
+  },
+  "dependencies": {
+    "sharp": "^0.34.5"
   }
 }

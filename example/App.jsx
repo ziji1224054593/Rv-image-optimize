@@ -1,5 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LazyImage, ProgressiveImage } from '../src/index.js';
+import UploadConfigPanel, {
+  DEFAULT_UPLOAD_FORM_FIELDS,
+  DEFAULT_UPLOAD_JSON_TEMPLATE,
+} from './UploadConfigPanel.jsx';
+import ReleaseAnnouncementPanel from './ReleaseAnnouncementPanel.jsx';
 import {
   losslessCompress,
   downloadCompressedImage,
@@ -7,37 +12,250 @@ import {
 } from '../lib/losslessCompress.js';
 import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../lib/imageOptimize.js';
 import { deleteCache, DEFAULT_DB_NAME, DEFAULT_STORE_NAME_GENERAL } from '../lib/imageCache.js';
+import {
+  createUploadPayloadPreview,
+  normalizeUploadConfig,
+  uploadCompressedFile
+} from '../lib/uploadPipeline.js';
 import '../src/LazyImage.css';
+
+function safeParseJson(value, fallback = {}) {
+  if (!value || !String(value).trim()) {
+    return fallback;
+  }
+
+  return JSON.parse(value);
+}
+
+function extractUploadedFileUrl(uploadResult) {
+  const data = uploadResult?.data;
+  if (!data || typeof data !== 'object') {
+    return uploadResult?.url || '';
+  }
+
+  return data.url || data.data?.url || data.result?.url || uploadResult.url || '';
+}
+
+function formatResponsePreview(data) {
+  if (data === null || data === undefined || data === '') {
+    return '无响应内容';
+  }
+
+  if (typeof data === 'string') {
+    return data;
+  }
+
+  try {
+    return JSON.stringify(data, null, 2);
+  } catch (error) {
+    return String(data);
+  }
+}
 
 // 无损压缩对比组件
 function LosslessCompressDemo() {
   const [files, setFiles] = useState([]);
-  const [results, setResults] = useState([]); // 存储所有文件的压缩结果
+  const [results, setResults] = useState([]);
   const [compressing, setCompressing] = useState(false);
-  const [compressingIndex, setCompressingIndex] = useState(-1); // 当前正在压缩的文件索引
-  const [totalStats, setTotalStats] = useState(null); // 总体统计
-  const [uploadStatus, setUploadStatus] = useState({}); // 上传状态 { fileIndex: { uploading: bool, success: bool, error: string } }
-  const [enableAutoUpload, setEnableAutoUpload] = useState(false); // 是否启用自动上传
-  const [validationEnabled, setValidationEnabled] = useState(true); // 是否启用文件验证
-  const [validationStrictMode, setValidationStrictMode] = useState(true); // 验证模式：严格或宽松
-  const [quality, setQuality] = useState(85); // 压缩质量（0-100）
-  const [compressionLevel, setCompressionLevel] = useState(6); // PNG压缩级别（0-9）
-  const [outputFormat, setOutputFormat] = useState('webp'); // 输出格式：'webp' | 'png' | null（自动选择）
+  const [compressingIndex, setCompressingIndex] = useState(-1);
+  const [totalStats, setTotalStats] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState({});
+  const [enableAutoUpload, setEnableAutoUpload] = useState(false);
+  const [validationEnabled, setValidationEnabled] = useState(true);
+  const [validationStrictMode, setValidationStrictMode] = useState(true);
+  const [quality, setQuality] = useState(85);
+  const [compressionLevel] = useState(6);
+  const [outputFormat, setOutputFormat] = useState('webp');
+  const [batchUploading, setBatchUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 });
 
-  // 验证配置（可以通过 props 或 state 传递）
+  const [uploadUrl, setUploadUrl] = useState('');
+  const [uploadMethod, setUploadMethod] = useState('POST');
+  const [authorization, setAuthorization] = useState('');
+  const [headersText, setHeadersText] = useState('{\n}');
+  const [uploadMode, setUploadMode] = useState('formFields');
+  const [fileFieldKey, setFileFieldKey] = useState('file');
+  const [formFields, setFormFields] = useState(DEFAULT_UPLOAD_FORM_FIELDS);
+  const [jsonTemplate, setJsonTemplate] = useState(DEFAULT_UPLOAD_JSON_TEMPLATE);
+
   const validationConfig = useMemo(() => ({
-    allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'], // 允许的格式
-    strict: validationStrictMode, // 严格验证（检查扩展名、MIME类型和文件头）
-    maxSize: 100 * 1024 * 1024, // 最大文件大小：100MB
-    minSize: 0, // 最小文件大小：0字节
-    enabled: validationEnabled, // 是否启用验证
+    allowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+    strict: validationStrictMode,
+    maxSize: 100 * 1024 * 1024,
+    minSize: 0,
+    enabled: validationEnabled,
   }), [validationEnabled, validationStrictMode]);
 
-  const handleFileChange = async (e) => {
-    const selectedFiles = Array.from(e.target.files);
+  const headerParseError = useMemo(() => {
+    try {
+      safeParseJson(headersText, {});
+      return '';
+    } catch (error) {
+      return error.message;
+    }
+  }, [headersText]);
+
+  const templateParseError = useMemo(() => {
+    if (uploadMode !== 'jsonTemplate') {
+      return '';
+    }
+
+    try {
+      safeParseJson(jsonTemplate, {});
+      return '';
+    } catch (error) {
+      return error.message;
+    }
+  }, [uploadMode, jsonTemplate]);
+
+  const buildUploadConfig = useCallback(() => {
+    if (!uploadUrl.trim()) {
+      throw new Error('请先填写上传接口地址');
+    }
+
+    if (headerParseError) {
+      throw new Error(`额外请求头 JSON 格式错误：${headerParseError}`);
+    }
+
+    if (templateParseError) {
+      throw new Error(`JSON 模板格式错误：${templateParseError}`);
+    }
+
+    const hasExplicitFileField = formFields.some((field) => field.key && field.valueType === 'file');
+    if (uploadMode === 'formFields' && !hasExplicitFileField && !fileFieldKey.trim()) {
+      throw new Error('请填写文件字段名，或在字段映射中添加一个“压缩后文件”字段');
+    }
+
+    return normalizeUploadConfig({
+      url: uploadUrl,
+      method: uploadMethod,
+      authorization,
+      headers: safeParseJson(headersText, {}),
+      dataMode: uploadMode,
+      formFields,
+      jsonTemplate,
+      fileFieldKey,
+    });
+  }, [
+    uploadUrl,
+    uploadMethod,
+    authorization,
+    headersText,
+    uploadMode,
+    formFields,
+    jsonTemplate,
+    fileFieldKey,
+    headerParseError,
+    templateParseError,
+  ]);
+
+  const updateFormField = useCallback((fieldId, key, value) => {
+    setFormFields((prev) => prev.map((field) => (
+      field.id === fieldId ? { ...field, [key]: value } : field
+    )));
+  }, []);
+
+  const createPreviewFromFile = (file) => new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataURL = event.target.result;
+      const img = new Image();
+      img.onload = () => {
+        resolve({
+          dataURL,
+          width: img.width,
+          height: img.height,
+        });
+      };
+      img.onerror = () => resolve({
+        dataURL,
+        width: null,
+        height: null,
+      });
+      img.src = dataURL;
+    };
+    reader.onerror = () => resolve({
+      dataURL: '',
+      width: null,
+      height: null,
+    });
+    reader.readAsDataURL(file);
+  });
+
+  const uploadSingleItem = useCallback(async (item, fileIndex, options = {}) => {
+    if (!item?.result?.file) {
+      throw new Error('文件不存在，无法上传');
+    }
+
+    const currentConfig = buildUploadConfig();
+    const fileInfo = item.result.fileInfo || item.fileInfo || { name: item.result.file.name };
+    fileInfo.status = 'uploading';
+
+    setUploadStatus((prev) => ({
+      ...prev,
+      [fileIndex]: { uploading: true, success: false, error: null, fileInfo }
+    }));
+
+    try {
+      const uploadResult = await uploadCompressedFile(item.result.file, item.result, currentConfig);
+      const resourceUrl = extractUploadedFileUrl(uploadResult);
+
+      fileInfo.status = 'success';
+      fileInfo.response = uploadResult.data;
+      fileInfo.url = resourceUrl || uploadResult.url;
+
+      setUploadStatus((prev) => ({
+        ...prev,
+        [fileIndex]: {
+          uploading: false,
+          success: true,
+          error: null,
+          result: uploadResult,
+          responseUrl: resourceUrl,
+          fileInfo,
+        }
+      }));
+
+      if (options.showSuccessAlert) {
+        alert('上传成功！');
+      }
+
+      return uploadResult;
+    } catch (error) {
+      fileInfo.status = 'fail';
+      fileInfo.error = error.message;
+
+      setUploadStatus((prev) => ({
+        ...prev,
+        [fileIndex]: {
+          uploading: false,
+          success: false,
+          error: error.message,
+          response: error.response || null,
+          fileInfo,
+        }
+      }));
+
+      if (options.showErrorAlert !== false) {
+        alert(`上传失败: ${error.message}`);
+      }
+
+      throw error;
+    }
+  }, [buildUploadConfig]);
+
+  const compressFiles = useCallback(async (selectedFiles) => {
     if (selectedFiles.length === 0) return;
 
-    // 验证所有文件（可手动开关）
+    if (enableAutoUpload) {
+      try {
+        buildUploadConfig();
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+    }
+
     let validFiles = [...selectedFiles];
     const invalidFiles = [];
 
@@ -54,42 +272,36 @@ function LosslessCompressDemo() {
               file,
               errors: validationResult.errors,
             });
-            console.log(`文件 ${file.name} 验证失败:`, validationResult.errors);
           }
         } catch (error) {
           invalidFiles.push({
             file,
             errors: [error.message],
           });
-          console.error(`文件 ${file.name} 验证出错:`, error);
         }
-      }
-
-      // 如果有无效文件，显示错误提示
-      if (invalidFiles.length > 0) {
-        const errorMessages = invalidFiles.map(item =>
-          `${item.file.name}: ${item.errors.join('; ')}`
-        ).join('\n');
-        alert(`以下文件验证失败，将被跳过：\n\n${errorMessages}`);
-        // console.log(`以下文件验证失败，将被跳过：\n\n${errorMessages}`)
       }
     }
 
-    // 如果没有有效文件，直接返回
-    if (validFiles.length === 0) {
-      // alert('没有有效的图片文件可以处理');
-      console.log('没有有效的图片文件可以处理');
+    if (invalidFiles.length > 0) {
+      const errorMessages = invalidFiles.map((item) =>
+        `${item.file.name}: ${item.errors.join('; ')}`
+      ).join('\n');
+      alert(`以下文件验证失败，将被跳过：\n\n${errorMessages}`);
+    }
 
+    if (validFiles.length === 0) {
+      console.log('没有有效的图片文件可以处理');
       return;
     }
 
     setFiles(validFiles);
     setResults([]);
     setTotalStats(null);
-    setUploadStatus({}); // 重置上传状态
+    setUploadStatus({});
+    setUploadProgress({ completed: 0, total: 0 });
     setCompressing(true);
+    setBatchUploading(false);
 
-    // 自动开始压缩所有文件
     const compressResults = [];
     let totalOriginalSize = 0;
     let totalCompressedSize = 0;
@@ -99,100 +311,35 @@ function LosslessCompressDemo() {
       setCompressingIndex(i);
 
       try {
-        // 执行无损压缩（一步到位，无需额外检查）
-        // 注意：这里可以再次传递验证配置，但通常在上传前已经验证过了
         const startTime = window.performance.now();
-        const result = await losslessCompress(file, {
+        const rawResult = await losslessCompress(file, {
           maxWidth: 1920,
-          format: outputFormat || null, // null 表示自动选择
-          compressionLevel: compressionLevel,
-          quality: quality / 100, // 将 0-100 转换为 0-1
-          // 传递验证配置（可手动开启/关闭，并可切换严格/宽松模式）
+          format: outputFormat || null,
+          compressionLevel,
+          quality: quality / 100,
           validation: validationConfig,
-          // 使用回调函数：压缩完成后自动上传到后端
-          onComplete: enableAutoUpload ? async (compressedFile, compressionResult, fileInfo) => {
-            // fileInfo 已经是 Element UI 格式，直接使用
-            fileInfo.status = 'uploading'; // 更新状态为上传中
-
-            console.log('压缩完成，文件信息（Element UI 格式）:', fileInfo);
-            console.log('文件详情:', {
-              name: fileInfo.name,
-              size: fileInfo.sizeFormatted,
-              type: fileInfo.type,
-              uid: fileInfo.uid,
-              status: fileInfo.status,
-              compressionInfo: fileInfo.compressionInfo,
-            });
-
-            // 更新上传状态
-            setUploadStatus(prev => ({
-              ...prev,
-              [i]: { uploading: true, success: false, error: null, fileInfo }
-            }));
-
-            try {
-              // 模拟上传到后端（实际使用时替换为真实的后端接口）
-              const uploadResult = await simulateUploadToBackend(compressedFile, compressionResult, file.name);
-
-              // 更新文件信息状态为成功
-              fileInfo.status = 'success';
-              fileInfo.response = uploadResult; // Element UI 格式：服务器响应
-              fileInfo.url = uploadResult.url;  // Element UI 格式：文件 URL
-
-              // 更新上传状态为成功
-              setUploadStatus(prev => ({
-                ...prev,
-                [i]: { uploading: false, success: true, error: null, result: uploadResult, fileInfo }
-              }));
-
-              console.log('上传成功，更新后的文件信息:', fileInfo);
-            } catch (uploadError) {
-              // 更新文件信息状态为失败
-              fileInfo.status = 'fail';
-              fileInfo.error = uploadError.message;
-
-              // 更新上传状态为失败
-              setUploadStatus(prev => ({
-                ...prev,
-                [i]: { uploading: false, success: false, error: uploadError.message, fileInfo }
-              }));
-
-              console.error('上传失败，文件信息:', fileInfo);
-            }
-          } : null,
         });
         const endTime = window.performance.now();
         const compressTime = endTime - startTime;
 
-        // 生成优化后的URL（使用 imageOptimize）
+        const result = {
+          ...rawResult,
+          sourceFile: file,
+          sourceFileName: file.name,
+          sourceFileSize: file.size,
+        };
+
         const optimizedUrl = optimizeImageUrl(URL.createObjectURL(file), {
           width: 1920,
-          quality: quality,
+          quality,
           autoFormat: true,
         });
-
-        // 创建预览
-        const preview = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const dataURL = e.target.result;
-            const img = new Image();
-            img.onload = () => {
-              resolve({
-                dataURL,
-                width: img.width,
-                height: img.height,
-              });
-            };
-            img.src = dataURL;
-          };
-          reader.readAsDataURL(file);
-        });
+        const preview = await createPreviewFromFile(file);
 
         const fileResult = {
           file,
           result,
-          fileInfo: result.fileInfo, // Element UI 格式的文件信息（主要使用这个）
+          fileInfo: result.fileInfo,
           optimizedUrl,
           preview,
           performance: {
@@ -204,7 +351,6 @@ function LosslessCompressDemo() {
 
         compressResults.push(fileResult);
 
-        // 更新统计
         if (result.originalSize !== null && !isNaN(result.originalSize) && result.originalSize > 0) {
           totalOriginalSize += result.originalSize;
         }
@@ -212,8 +358,18 @@ function LosslessCompressDemo() {
           totalCompressedSize += result.compressedSize;
         }
 
-        // 更新结果状态（实时显示）
         setResults([...compressResults]);
+
+        if (enableAutoUpload) {
+          try {
+            await uploadSingleItem(fileResult, i, {
+              showSuccessAlert: false,
+              showErrorAlert: false,
+            });
+          } catch (error) {
+            console.error(`文件 ${file.name} 上传失败:`, error);
+          }
+        }
       } catch (error) {
         console.error(`文件 ${file.name} 压缩失败:`, error);
         compressResults.push({
@@ -225,7 +381,6 @@ function LosslessCompressDemo() {
       }
     }
 
-    // 计算总体统计
     const totalSaved = (totalOriginalSize > 0 && !isNaN(totalOriginalSize) && !isNaN(totalCompressedSize))
       ? (totalOriginalSize - totalCompressedSize)
       : null;
@@ -246,148 +401,45 @@ function LosslessCompressDemo() {
 
     setCompressing(false);
     setCompressingIndex(-1);
-  };
+  }, [
+    buildUploadConfig,
+    compressionLevel,
+    createPreviewFromFile,
+    enableAutoUpload,
+    outputFormat,
+    quality,
+    uploadSingleItem,
+    validationConfig,
+    validationEnabled,
+  ]);
 
-  // 重新压缩所有已加载的文件（使用新的 quality 值）
-  const handleRecompress = async () => {
-    if (files.length === 0 || compressing) {
+  const handleFileChange = useCallback(async (event) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    event.target.value = '';
+
+    if (selectedFiles.length === 0) {
       return;
     }
 
-    setCompressing(true);
-    setCompressingIndex(-1);
-    setResults([]);
-    setTotalStats(null);
-    setUploadStatus({});
+    const imageFiles = selectedFiles.filter((file) => (
+      file.type.startsWith('image/') ||
+      /\.(png|jpe?g|webp|gif|bmp|svg|avif)$/i.test(file.name)
+    ));
 
-    const compressResults = [];
-    let totalOriginalSize = 0;
-    let totalCompressedSize = 0;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setCompressingIndex(i);
-
-      try {
-        const startTime = window.performance.now();
-        const result = await losslessCompress(file, {
-          maxWidth: 1920,
-          format: outputFormat || null, // null 表示自动选择
-          compressionLevel: compressionLevel,
-          quality: quality / 100, // 将 0-100 转换为 0-1
-          validation: validationConfig,
-          onComplete: enableAutoUpload ? async (compressedFile, compressionResult, fileInfo) => {
-            fileInfo.status = 'uploading';
-            setUploadStatus(prev => ({
-              ...prev,
-              [i]: { uploading: true, success: false, error: null, fileInfo }
-            }));
-
-            try {
-              const uploadResult = await simulateUploadToBackend(compressedFile, compressionResult, file.name);
-              fileInfo.status = 'success';
-              fileInfo.response = uploadResult;
-              fileInfo.url = uploadResult.url;
-              setUploadStatus(prev => ({
-                ...prev,
-                [i]: { uploading: false, success: true, error: null, result: uploadResult, fileInfo }
-              }));
-            } catch (uploadError) {
-              fileInfo.status = 'fail';
-              fileInfo.error = uploadError.message;
-              setUploadStatus(prev => ({
-                ...prev,
-                [i]: { uploading: false, success: false, error: uploadError.message, fileInfo }
-              }));
-            }
-          } : null,
-        });
-        const endTime = window.performance.now();
-        const compressTime = endTime - startTime;
-
-        // 生成优化后的URL（使用新的 quality 值）
-        const optimizedUrl = optimizeImageUrl(URL.createObjectURL(file), {
-          width: 1920,
-          quality: quality,
-          autoFormat: true,
-        });
-
-        // 创建预览
-        const preview = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const dataURL = e.target.result;
-            const img = new Image();
-            img.onload = () => {
-              resolve({
-                dataURL,
-                width: img.width,
-                height: img.height,
-              });
-            };
-            img.src = dataURL;
-          };
-          reader.readAsDataURL(file);
-        });
-
-        const fileResult = {
-          file,
-          result,
-          fileInfo: result.fileInfo,
-          optimizedUrl,
-          preview,
-          performance: {
-            compressTime: compressTime.toFixed(2),
-            compressTimeFormatted: `${compressTime.toFixed(2)}ms`,
-          },
-          index: i,
-        };
-
-        compressResults.push(fileResult);
-
-        // 更新统计
-        if (result.originalSize !== null && !isNaN(result.originalSize) && result.originalSize > 0) {
-          totalOriginalSize += result.originalSize;
-        }
-        if (result.compressedSize !== null && !isNaN(result.compressedSize)) {
-          totalCompressedSize += result.compressedSize;
-        }
-
-        // 实时更新结果
-        setResults([...compressResults]);
-      } catch (error) {
-        console.error(`文件 ${file.name} 压缩失败:`, error);
-        compressResults.push({
-          file,
-          result: null,
-          error: error.message,
-          index: i,
-        });
-        setResults([...compressResults]);
-      }
+    if (imageFiles.length !== selectedFiles.length) {
+      alert(`已自动跳过 ${selectedFiles.length - imageFiles.length} 个非图片文件`);
     }
 
-    // 计算总体统计
-    const totalSaved = (totalOriginalSize > 0 && !isNaN(totalOriginalSize) && !isNaN(totalCompressedSize))
-      ? (totalOriginalSize - totalCompressedSize)
-      : null;
-    const totalSavedPercentage = (totalOriginalSize > 0 && !isNaN(totalOriginalSize) && totalSaved !== null)
-      ? parseFloat(((totalSaved / totalOriginalSize) * 100).toFixed(2))
-      : null;
+    await compressFiles(imageFiles);
+  }, [compressFiles]);
 
-    setTotalStats({
-      totalFiles: files.length,
-      totalOriginalSize: totalOriginalSize > 0 ? totalOriginalSize : 0,
-      totalCompressedSize: totalCompressedSize > 0 ? totalCompressedSize : 0,
-      totalSaved,
-      totalSavedPercentage,
-      totalOriginalSizeFormatted: totalOriginalSize > 0 ? formatFileSize(totalOriginalSize) : '未知',
-      totalCompressedSizeFormatted: totalCompressedSize > 0 ? formatFileSize(totalCompressedSize) : '未知',
-      totalSavedFormatted: totalSaved !== null && !isNaN(totalSaved) ? formatFileSize(Math.abs(totalSaved)) : '未知',
-    });
+  // 重新压缩所有已加载的文件（使用新的 quality 值）
+  const handleRecompress = async () => {
+    if (files.length === 0 || compressing || batchUploading) {
+      return;
+    }
 
-    setCompressing(false);
-    setCompressingIndex(-1);
+    await compressFiles(files);
   };
 
   const handleDownload = (result) => {
@@ -396,101 +448,79 @@ function LosslessCompressDemo() {
     }
   };
 
-  // 手动上传文件到后端（不使用回调函数的方式）
   const handleManualUpload = async (result, fileIndex) => {
-    if (!result || !result.result || !result.result.file) {
-      alert('文件不存在，无法上传');
+    try {
+      await uploadSingleItem(result, fileIndex, { showSuccessAlert: true });
+    } catch (error) {
+      console.error('手动上传失败:', error);
+    }
+  };
+
+  const handleUploadAll = async () => {
+    if (compressing || batchUploading) {
       return;
     }
 
-    // 直接使用 result.fileInfo（已经是 Element UI 格式）
-    const fileInfo = result.result.fileInfo || result.fileInfo;
-    if (!fileInfo) {
-      alert('文件信息不存在');
+    const uploadableItems = results.filter((item) => item?.result?.file);
+    if (uploadableItems.length === 0) {
+      alert('请先选择并压缩图片');
       return;
     }
-
-    fileInfo.status = 'uploading'; // 更新状态为上传中
-
-    console.log('手动上传，文件信息（Element UI 格式）:', fileInfo);
-    console.log('文件详情:', {
-      name: fileInfo.name,
-      size: fileInfo.sizeFormatted,
-      type: fileInfo.type,
-      uid: fileInfo.uid,
-      status: fileInfo.status,
-      compressionInfo: fileInfo.compressionInfo,
-    });
-
-    setUploadStatus(prev => ({
-      ...prev,
-      [fileIndex]: { uploading: true, success: false, error: null, fileInfo }
-    }));
 
     try {
-      const uploadResult = await simulateUploadToBackend(
-        result.result.file,
-        result.result,
-        result.file.name
-      );
-
-      // 更新文件信息状态为成功
-      fileInfo.status = 'success';
-      fileInfo.response = uploadResult; // Element UI 格式：服务器响应
-      fileInfo.url = uploadResult.url;  // Element UI 格式：文件 URL
-
-      setUploadStatus(prev => ({
-        ...prev,
-        [fileIndex]: { uploading: false, success: true, error: null, result: uploadResult, fileInfo }
-      }));
-
-      console.log('上传成功，更新后的文件信息:', fileInfo);
-      alert('上传成功！');
+      buildUploadConfig();
     } catch (error) {
-      // 更新文件信息状态为失败
-      fileInfo.status = 'fail';
-      fileInfo.error = error.message;
-
-      setUploadStatus(prev => ({
-        ...prev,
-        [fileIndex]: { uploading: false, success: false, error: error.message, fileInfo }
-      }));
-
-      console.error('上传失败，文件信息:', fileInfo);
-      alert(`上传失败: ${error.message}`);
+      alert(error.message);
+      return;
     }
+
+    setBatchUploading(true);
+    setUploadProgress({ completed: 0, total: uploadableItems.length });
+
+    let successCount = 0;
+    for (let i = 0; i < uploadableItems.length; i++) {
+      const item = uploadableItems[i];
+      try {
+        await uploadSingleItem(item, item.index, {
+          showSuccessAlert: false,
+          showErrorAlert: false,
+        });
+        successCount += 1;
+      } catch (error) {
+        console.error('批量上传失败:', error);
+      } finally {
+        setUploadProgress({
+          completed: i + 1,
+          total: uploadableItems.length,
+        });
+      }
+    }
+
+    setBatchUploading(false);
+    alert(`批量上传完成：成功 ${successCount} 个，失败 ${uploadableItems.length - successCount} 个`);
   };
 
-  // 模拟上传到后端（实际使用时替换为真实的后端接口）
-  const simulateUploadToBackend = async (compressedFile, compressionResult, originalFileName) => {
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+  const payloadPreview = useMemo(() => {
+    const firstReadyItem = results.find((item) => item?.result?.file);
+    if (!firstReadyItem) {
+      return null;
+    }
 
-    // 模拟上传（实际使用时，这里应该是真实的 fetch 调用）
-    // const formData = new FormData();
-    // formData.append('image', compressedFile);
-    // formData.append('originalSize', compressionResult.originalSize);
-    // formData.append('compressedSize', compressionResult.compressedSize);
-    // 
-    // const response = await fetch('/api/upload', {
-    //   method: 'POST',
-    //   body: formData,
-    // });
-    // 
-    // if (!response.ok) {
-    //   throw new Error('上传失败');
-    // }
-    // 
-    // return await response.json();
+    try {
+      const currentConfig = buildUploadConfig();
+      return createUploadPayloadPreview(firstReadyItem.result.file, firstReadyItem.result, currentConfig);
+    } catch (error) {
+      return { error: error.message };
+    }
+  }, [results, buildUploadConfig]);
 
-    // 模拟返回结果
-    return {
-      success: true,
-      url: `https://example.com/uploads/${compressedFile.name}`,
-      fileSize: compressionResult.compressedSize,
-      uploadedAt: new Date().toISOString(),
-    };
-  };
+  const requestHeadersPreview = useMemo(() => {
+    if (headerParseError) {
+      return null;
+    }
+
+    return safeParseJson(headersText, {});
+  }, [headerParseError, headersText]);
 
   return (
     <div style={{
@@ -504,13 +534,28 @@ function LosslessCompressDemo() {
 
       <div style={{ marginBottom: '20px' }}>
         <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleFileChange}
-            style={{ marginBottom: '10px' }}
-          />
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
+            <span>选择图片文件</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileChange}
+              style={{ marginBottom: '10px' }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
+            <span>选择整个文件夹</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              webkitdirectory=""
+              directory=""
+              onChange={handleFileChange}
+              style={{ marginBottom: '10px' }}
+            />
+          </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <label style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>压缩质量：</label>
             <input
@@ -534,33 +579,6 @@ function LosslessCompressDemo() {
             />
             <span style={{ fontSize: '14px', color: '#666' }}>(0-100)</span>
           </div>
-          {/* <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <label style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>压缩级别：</label>
-            <select
-              value={compressionLevel}
-              onChange={(e) => {
-                const value = parseInt(e.target.value, 10);
-                if (!isNaN(value) && value >= 0 && value <= 9) {
-                  setCompressionLevel(value);
-                }
-              }}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px',
-                cursor: 'pointer'
-              }}
-              title="⚠️ 注意：浏览器端无法控制 PNG/WebP 压缩级别，此参数主要用于服务端处理。对于 WebP 格式，只有 quality 参数有效。"
-            >
-              {Array.from({ length: 10 }, (_, i) => (
-                <option key={i} value={i}>{i}</option>
-              ))}
-            </select>
-            <span style={{ fontSize: '14px', color: '#ff4d4f' }} title="⚠️ 浏览器端限制：此参数对 WebP 格式无效，只有 quality 参数有效">
-              ⚠️ (浏览器端无效)
-            </span>
-          </div> */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <label style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>输出格式：</label>
             <select
@@ -584,14 +602,14 @@ function LosslessCompressDemo() {
           {files.length > 0 && (
             <button
               onClick={handleRecompress}
-              disabled={compressing}
+              disabled={compressing || batchUploading}
               style={{
                 padding: '4px 12px',
-                backgroundColor: compressing ? '#d9d9d9' : '#1890ff',
+                backgroundColor: compressing || batchUploading ? '#d9d9d9' : '#1890ff',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: compressing ? 'not-allowed' : 'pointer',
+                cursor: compressing || batchUploading ? 'not-allowed' : 'pointer',
                 fontSize: '14px',
                 fontWeight: 'bold',
                 whiteSpace: 'nowrap'
@@ -600,13 +618,32 @@ function LosslessCompressDemo() {
               {compressing ? '压缩中...' : '重新压缩'}
             </button>
           )}
+          {results.some((item) => item?.result?.file) && (
+            <button
+              onClick={handleUploadAll}
+              disabled={compressing || batchUploading}
+              style={{
+                padding: '4px 12px',
+                backgroundColor: compressing || batchUploading ? '#d9d9d9' : '#52c41a',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: compressing || batchUploading ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {batchUploading ? '批量上传中...' : '一键压缩后上传全部'}
+            </button>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={enableAutoUpload}
               onChange={(e) => setEnableAutoUpload(e.target.checked)}
             />
-            <span style={{ fontSize: '14px' }}>启用自动上传（使用回调函数）</span>
+            <span style={{ fontSize: '14px' }}>启用自动上传（压缩完成后直接请求接口）</span>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
             <input
@@ -627,8 +664,32 @@ function LosslessCompressDemo() {
             </label>
           )}
         </div>
+        <UploadConfigPanel
+          uploadUrl={uploadUrl}
+          onUploadUrlChange={setUploadUrl}
+          uploadMethod={uploadMethod}
+          onUploadMethodChange={setUploadMethod}
+          fileFieldKey={fileFieldKey}
+          onFileFieldKeyChange={setFileFieldKey}
+          authorization={authorization}
+          onAuthorizationChange={setAuthorization}
+          headersText={headersText}
+          onHeadersTextChange={setHeadersText}
+          headerParseError={headerParseError}
+          uploadMode={uploadMode}
+          onUploadModeChange={setUploadMode}
+          formFields={formFields}
+          onUpdateFormField={updateFormField}
+          onAddFormField={(field) => setFormFields((prev) => [...prev, field])}
+          onRemoveFormField={(fieldId) => setFormFields((prev) => prev.filter((item) => item.id !== fieldId))}
+          jsonTemplate={jsonTemplate}
+          onJsonTemplateChange={setJsonTemplate}
+          templateParseError={templateParseError}
+          payloadPreview={payloadPreview}
+          requestHeadersPreview={requestHeadersPreview}
+        />
         <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
-          💡 支持批量选择多个图片文件，选择后会自动开始压缩
+          支持批量选择多个图片文件，也支持直接选择整个文件夹；选择后会先自动压缩，再由你决定手动上传、自动上传或一键上传全部。
           <div style={{ marginTop: '5px', padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
             <strong>文件验证规则：</strong>
             <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
@@ -647,7 +708,7 @@ function LosslessCompressDemo() {
           </div>
           {enableAutoUpload && (
             <span style={{ color: '#1890ff', marginLeft: '10px', display: 'block', marginTop: '5px' }}>
-              ✓ 已启用自动上传：压缩完成后会自动通过回调函数上传到后端
+              已启用自动上传：压缩完成后会按当前上传配置直接请求接口
             </span>
           )}
         </div>
@@ -664,6 +725,17 @@ function LosslessCompressDemo() {
               <span>正在处理第 {compressingIndex + 1} / {files.length} 个文件 ({files[compressingIndex]?.name})</span>
             )}
             {compressingIndex < 0 && <span>准备中...</span>}
+          </div>
+        )}
+        {batchUploading && (
+          <div style={{
+            padding: '10px',
+            backgroundColor: '#f6ffed',
+            borderRadius: '4px',
+            marginBottom: '10px'
+          }}>
+            <strong>上传进度：</strong>
+            <span>正在上传 {uploadProgress.completed} / {uploadProgress.total} 个文件</span>
           </div>
         )}
 
@@ -742,6 +814,11 @@ function LosslessCompressDemo() {
                     {item.file.name}
                     {compressingIndex === index && <span style={{ color: '#1890ff', marginLeft: '10px' }}>⏳ 压缩中...</span>}
                   </h4>
+                  {item.file.webkitRelativePath && (
+                    <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px', wordBreak: 'break-all' }}>
+                      目录路径：{item.file.webkitRelativePath}
+                    </div>
+                  )}
 
                   {item.error ? (
                     <div style={{ padding: '10px', backgroundColor: '#ffebee', borderRadius: '4px', color: '#c62828' }}>
@@ -871,7 +948,7 @@ function LosslessCompressDemo() {
                                 <div style={{ fontSize: '11px', marginTop: '5px', color: '#666' }}>
                                   文件URL:
                                   <div
-                                    title={uploadStatus[item.index].result.url}
+                                    title={uploadStatus[item.index].responseUrl || uploadStatus[item.index].result.url}
                                     style={{
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
@@ -880,7 +957,13 @@ function LosslessCompressDemo() {
                                       maxWidth: '100%'
                                     }}
                                   >
-                                    {uploadStatus[item.index].result.url}
+                                    {uploadStatus[item.index].responseUrl || uploadStatus[item.index].result.url}
+                                  </div>
+                                  <div style={{ marginTop: '6px' }}>
+                                    接口响应：
+                                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '4px 0 0 0' }}>
+                                      {formatResponsePreview(uploadStatus[item.index].result.data)}
+                                    </pre>
                                   </div>
                                 </div>
                               )}
@@ -917,23 +1000,25 @@ function LosslessCompressDemo() {
                         </button>
                         <button
                           onClick={() => handleManualUpload(item, item.index)}
-                          disabled={uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success}
+                          disabled={batchUploading || uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success}
                           style={{
                             padding: '8px',
-                            backgroundColor: uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success
+                            backgroundColor: batchUploading || uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success
                               ? '#d9d9d9'
                               : '#1890ff',
                             color: 'white',
                             border: 'none',
                             borderRadius: '4px',
-                            cursor: uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success
+                            cursor: batchUploading || uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success
                               ? 'not-allowed'
                               : 'pointer',
                             fontSize: '12px',
-                            opacity: uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success ? 0.6 : 1
+                            opacity: batchUploading || uploadStatus[item.index]?.uploading || uploadStatus[item.index]?.success ? 0.6 : 1
                           }}
                         >
-                          {uploadStatus[item.index]?.uploading
+                          {batchUploading
+                            ? '批量上传中'
+                            : uploadStatus[item.index]?.uploading
                             ? '上传中...'
                             : uploadStatus[item.index]?.success
                               ? '已上传'
@@ -961,26 +1046,69 @@ function OnlineImageOptimizeDemo() {
   const imageUrl = "https://pic.rmb.bdstatic.com/bjh/pay_read/3883a287b37eaa34dcf80a031f969db05547.jpeg";
   const [optimizedImages, setOptimizedImages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [hasAutoOptimized, setHasAutoOptimized] = useState(false);
   const [compressionLevel] = useState(6); // PNG压缩级别（0-9），浏览器端无效，仅用于兼容
-  const [quality] = useState(85); // 压缩质量（0-100）
-  const [outputFormat] = useState('webp'); // 输出格式
+  const sliderRef = useRef(null);
+
+  const strategyConfigs = [
+    {
+      id: 'high-quality-webp',
+      title: '策略 1：高质量 WebP',
+      description: '适合高清展示，优先保留细节。',
+      options: {
+        maxWidth: 1920,
+        format: 'webp',
+        compressionLevel,
+        quality: 0.9,
+      },
+    },
+    {
+      id: 'balanced-webp',
+      title: '策略 2：平衡 WebP',
+      description: '兼顾清晰度和体积，适合常规页面。',
+      options: {
+        maxWidth: 1280,
+        format: 'webp',
+        compressionLevel,
+        quality: 0.78,
+      },
+    },
+    {
+      id: 'small-auto-format',
+      title: '策略 3：轻量自动格式',
+      description: '优先减小体积，适合首屏和列表。',
+      options: {
+        maxWidth: 960,
+        format: null,
+        compressionLevel,
+        quality: 0.65,
+      },
+    },
+  ];
 
   const handleOptimizeImage = async () => {
     setLoading(true);
     try {
-      // 使用 losslessCompress 优化在线图片
-      const result = await losslessCompress(imageUrl, {
-        maxWidth: 1920,
-        format: outputFormat || null,
-        compressionLevel: compressionLevel,
-        quality: quality / 100, // 将 0-100 转换为 0-1
-      });
+      if (sliderRef.current) {
+        sliderRef.current.scrollLeft = 0;
+      }
 
-      setOptimizedImages(prev => [...prev, {
-        originalUrl: imageUrl,
-        optimized: result,
-        timestamp: Date.now(),
-      }]);
+      const results = await Promise.all(
+        strategyConfigs.map(async (strategy) => {
+          const result = await losslessCompress(imageUrl, strategy.options);
+          return {
+            id: strategy.id,
+            title: strategy.title,
+            description: strategy.description,
+            options: strategy.options,
+            originalUrl: imageUrl,
+            optimized: result,
+            timestamp: `${strategy.id}-${Date.now()}`,
+          };
+        })
+      );
+
+      setOptimizedImages(results);
     } catch (error) {
       console.error('图片优化失败:', error);
       alert('图片优化失败: ' + error.message);
@@ -989,19 +1117,82 @@ function OnlineImageOptimizeDemo() {
     }
   };
 
+  useEffect(() => {
+    if (!hasAutoOptimized && !loading) {
+      setHasAutoOptimized(true);
+      handleOptimizeImage();
+    }
+  }, [hasAutoOptimized, loading]);
+
+  useEffect(() => {
+    const slider = sliderRef.current;
+    if (!slider) {
+      return undefined;
+    }
+
+    const tick = () => {
+      if (!slider) return;
+      const maxScrollLeft = slider.scrollWidth - slider.clientWidth;
+      if (maxScrollLeft <= 0) {
+        return;
+      }
+
+      const next = slider.scrollLeft + 1.2;
+      slider.scrollLeft = next >= maxScrollLeft ? 0 : next;
+    };
+
+    const timer = window.setInterval(tick, 16);
+    return () => window.clearInterval(timer);
+  }, [optimizedImages]);
+
+  const slides = [
+    {
+      key: 'original',
+      title: '原始图片',
+      imageSrc: imageUrl,
+      useLazy: true,
+      meta: [
+        '来源：在线原图',
+        '说明：作为 3 套优化策略的对照图',
+      ],
+    },
+    ...optimizedImages.map((item) => ({
+      key: item.id,
+      title: item.title,
+      imageSrc: item.optimized.dataURL,
+      useLazy: false,
+      meta: [
+        item.description,
+        `格式：${item.optimized.originalFormat?.toUpperCase() || '未知'} -> ${item.optimized.compressedFormat.toUpperCase()}`,
+        `尺寸：${item.optimized.compressedWidth} × ${item.optimized.compressedHeight}px`,
+        `大小：${item.optimized.compressedSizeFormatted}`,
+        `参数：maxWidth=${item.options.maxWidth}, quality=${Math.round((item.options.quality || 0) * 100)}${item.options.format ? `, format=${item.options.format}` : ', format=auto'}`,
+        item.optimized.savedPercentage !== null
+          ? `变化：${item.optimized.savedPercentage > 0 ? '-' : '+'}${Math.abs(item.optimized.savedPercentage)}%`
+          : '变化：无法计算',
+      ],
+      blob: item.optimized.blob,
+      fileName: `${item.id}.${item.optimized.compressedFormat}`,
+    })),
+  ];
+
+  const sliderItems = slides.length > 1 ? [...slides, ...slides] : slides;
+
   return (
     <div style={{
       padding: '20px',
       border: '1px solid #ddd',
       borderRadius: '8px',
-      backgroundColor: '#f9f9f9'
+      backgroundColor: '#f9f9f9',
+      marginBottom: '30px',
     }}>
-      <h2>在线图片优化展示</h2>
-      <p style={{ color: '#666', marginBottom: '20px' }}>
-        使用图片优化工具对在线 URL 的高清图片进行优化处理，展示优化效果
-      </p>
-
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div>
+          <h3 style={{ margin: 0 }}>在线图片优化展示</h3>
+          <p style={{ color: '#666', margin: '8px 0 0 0', fontSize: '14px' }}>
+            页面打开后会自动生成 3 套不同优化策略，并在上方横向自动滑动展示。
+          </p>
+        </div>
         <button
           onClick={handleOptimizeImage}
           disabled={loading}
@@ -1016,150 +1207,100 @@ function OnlineImageOptimizeDemo() {
             fontWeight: 'bold'
           }}
         >
-          {loading ? '优化中...' : '优化图片'}
+          {loading ? '生成中...' : '重新生成 3 套策略'}
         </button>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        {/* 原始图片展示 */}
-        <div style={{ marginBottom: '30px', width: '48%' }}>
-          <h3>原始图片</h3>
-          <div style={{
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            padding: '15px',
-            backgroundColor: 'white',
-          }}>
-            <h3 style={{ marginTop: '0px' }}>优化前的图片</h3>
-            <LazyImage
-              src={imageUrl}
-              alt="原始高清图片"
-              width={'auto'}
-              height={'auto'}
-              optimize={{
-                width: 1920,
-                quality: 90,
-                autoFormat: true
+      <div
+        ref={sliderRef}
+        style={{
+          marginTop: '18px',
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          scrollBehavior: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '16px', width: 'max-content', paddingBottom: '6px' }}>
+          {sliderItems.map((item, index) => (
+            <div
+              key={`${item.key}-${index}`}
+              style={{
+                width: '320px',
+                flex: '0 0 auto',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '15px',
+                backgroundColor: 'white'
               }}
-              showPlaceholderIcon={true}
-              onLoad={(event, optimizationInfo) => {
-                console.log('原始图片加载完成', optimizationInfo);
-              }}
-            />
-            <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
-              图片URL:
-              <div title={imageUrl} style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                wordBreak: 'break-all',
-                maxWidth: '100%'
-              }}>
-                {imageUrl}
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* 优化后的图片列表 */}
-        {optimizedImages.length > 0 && (
-          <div style={{ width: '48%' }}>
-            <h3>优化后的图片 ({optimizedImages.length})</h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
-              gap: '20px',
-              marginTop: '15px'
-            }}>
-              {optimizedImages.map((item, index) => (
-                <div key={item.timestamp} style={{
-                  border: '1px solid #ddd',
-                  borderRadius: '8px',
-                  padding: '15px',
-                  backgroundColor: 'white'
-                }}>
-                  <h4 style={{ marginTop: 0, marginBottom: '15px' }}>
-                    优化结果 #{index + 1}
-                  </h4>
-
-                  {/* 优化后的图片 */}
-                  <div style={{ marginBottom: '15px' }}>
-                    <img
-                      src={item.optimized.dataURL}
-                      alt="优化后的图片"
-                      style={{
-                        width: '100%',
-                        height: 'auto',
-                        borderRadius: '4px',
-                        border: '1px solid #eee'
-                      }}
-                    />
-                  </div>
-
-                  {/* 优化信息 */}
-                  <div style={{
-                    padding: '10px',
-                    backgroundColor: '#f5f5f5',
-                    borderRadius: '4px',
-                    fontSize: '12px'
-                  }}>
-                    <div style={{ marginBottom: '5px' }}>
-                      <strong>格式:</strong> {item.optimized.originalFormat?.toUpperCase() || '未知'} → {item.optimized.compressedFormat.toUpperCase()}
-                    </div>
-                    <div style={{ marginBottom: '5px' }}>
-                      <strong>尺寸:</strong> {item.optimized.compressedWidth} × {item.optimized.compressedHeight}px
-                    </div>
-                    <div style={{ marginBottom: '5px' }}>
-                      <strong>原始大小:</strong> {item.optimized.originalSizeFormatted || '未知'}
-                    </div>
-                    <div style={{ marginBottom: '5px' }}>
-                      <strong>优化后大小:</strong>
-                      <span style={{ color: '#52c41a', fontWeight: 'bold', marginLeft: '5px' }}>
-                        {item.optimized.compressedSizeFormatted}
-                      </span>
-                    </div>
-                    {item.optimized.savedPercentage !== null && (
-                      <div style={{ marginBottom: '5px' }}>
-                        <strong>节省:</strong>
-                        <span style={{
-                          color: item.optimized.savedPercentage > 0 ? '#52c41a' : '#ff9800',
-                          fontWeight: 'bold',
-                          marginLeft: '5px'
-                        }}>
-                          {item.optimized.savedPercentage > 0 ? '-' : '+'}{Math.abs(item.optimized.savedPercentage)}%
-                          ({item.optimized.savedSizeFormatted})
-                        </span>
-                      </div>
-                    )}
-                    {item.optimized.gpuAccelerated && (
-                      <div style={{ marginBottom: '5px', color: '#1890ff' }}>
-                        <strong>GPU加速:</strong> ✓ 已启用 ({item.optimized.gpuMethod})
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 下载按钮 */}
-                  <button
-                    onClick={() => downloadCompressedImage(item.optimized.blob, `optimized-${index + 1}.${item.optimized.compressedFormat}`)}
+            >
+              <h4 style={{ marginTop: 0, marginBottom: '12px' }}>{item.title}</h4>
+              <div style={{ marginBottom: '12px' }}>
+                {item.useLazy ? (
+                  <LazyImage
+                    src={item.imageSrc}
+                    alt={item.title}
+                    width="100%"
+                    height={220}
+                    optimize={{
+                      width: 1280,
+                      quality: 90,
+                      autoFormat: true
+                    }}
+                    showPlaceholderIcon={true}
+                  />
+                ) : (
+                  <img
+                    src={item.imageSrc}
+                    alt={item.title}
                     style={{
                       width: '100%',
-                      marginTop: '10px',
-                      padding: '8px',
-                      backgroundColor: '#52c41a',
-                      color: 'white',
-                      border: 'none',
+                      height: '220px',
+                      objectFit: 'cover',
                       borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
+                      border: '1px solid #eee'
                     }}
-                  >
-                    下载优化图片
-                  </button>
-                </div>
-              ))}
+                  />
+                )}
+              </div>
+              <div style={{
+                padding: '10px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '4px',
+                fontSize: '12px'
+              }}>
+                {item.meta.map((line, metaIndex) => (
+                  <div key={metaIndex} style={{ marginBottom: metaIndex === item.meta.length - 1 ? 0 : '5px' }}>
+                    {line}
+                  </div>
+                ))}
+              </div>
+              {item.blob && (
+                <button
+                  onClick={() => downloadCompressedImage(item.blob, item.fileName)}
+                  style={{
+                    width: '100%',
+                    marginTop: '10px',
+                    padding: '8px',
+                    backgroundColor: '#52c41a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  下载优化图片
+                </button>
+              )}
             </div>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
+
+      <p style={{ color: '#999', margin: '12px 0 0 0', fontSize: '12px' }}>
+        当前展示固定输出 1 张原图对照 + 3 套不同优化策略，便于直接比较格式、尺寸和体积差异。
+      </p>
     </div>
   );
 }
@@ -1907,11 +2048,13 @@ function App() {
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <h1 style={{ marginBottom: '30px' }}>图片优化工具演示</h1>
+      <ReleaseAnnouncementPanel />
 
-      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}>
+      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '模糊到清晰的渐进式加载示例']}>
       {/* <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}> */}
         {/* 第一页：LazyImage 组件示例 */}
         <div>
+          <OnlineImageOptimizeDemo />
 
           <div style={{ marginBottom: '40px' }}>
             <h3>懒加载 + 渐进式加载示例</h3>
@@ -1969,17 +2112,12 @@ function App() {
           <LosslessCompressDemo />
         </div>
 
-        {/* 第三页：在线图片优化展示 */}
-        <div>
-          <OnlineImageOptimizeDemo />
-        </div>
-
-        {/* 第四页 渐进式加载示例 */}
-        <div>
+        {/* 第三页 渐进式加载示例 */}
+        {/* <div>
           <ProgressiveLoadDemo />
-        </div>
+        </div> */}
 
-        {/* 第五页 模糊到清晰的渐进式加载示例 */}
+        {/* 第四页 模糊到清晰的渐进式加载示例 */}
         <div>
           <BlurToClearDemo />
         </div>

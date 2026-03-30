@@ -1,8 +1,8 @@
 # rv-image-optimize
 
-高性能、跨框架的图片优化与懒加载解决方案。内置 React 组件、渐进式加载、浏览器/无损压缩和 IndexedDB 通用缓存，同时提供 `utils-only` 入口，方便 Vue/Vite/Webpack/原生 JS 等环境直接调用工具函数。
+高性能、跨框架的图片优化与懒加载解决方案。内置 React 组件、渐进式加载、浏览器/无损压缩和 IndexedDB 通用缓存，同时提供 `utils-only` 入口，以及面向 Node/CLI 的独立压缩与上传子入口，方便不同运行环境按需接入。
 
-> 最新版本：**v2.1.3**（新增 `utils-only` 入口、修复浏览器压缩质量参数、完善构建流程）
+> 最新版本：**v2.3.0**（新增上传编排能力，并补充 Node/CLI 压缩入口）
 >
 > ⚠️ Vue / Webpack / 原生项目务必使用 `rv-image-optimize/utils-only` 或 `dist/image-optimize-utils.*` 入口，避免导入 React 组件导致错误。详见 [VUE_USAGE.md](./VUE_USAGE.md)。
 
@@ -18,10 +18,12 @@
 3. [快速开始](#快速开始)
 4. [框架接入指南](#框架接入指南)
 5. [功能模块概要](#功能模块概要)
-6. [通用缓存系统（IndexedDB）](#通用缓存系统indexeddb)
-7. [FAQ & 故障排查](#faq--故障排查)
-8. [配套文档](#配套文档)
-9. [License](#license)
+6. [上传编排（压缩后上传）](#上传编排压缩后上传)
+7. [Node / CLI 压缩入口](#node--cli-压缩入口)
+8. [通用缓存系统（IndexedDB）](#通用缓存系统indexeddb)
+9. [FAQ & 故障排查](#faq--故障排查)
+10. [配套文档](#配套文档)
+11. [License](#license)
 
 ---
 
@@ -31,7 +33,8 @@
 | --- | --- |
 | **图片优化** | 多 CDN 适配、自动格式（AVIF/WebP/JPG）、响应式 srcset/sizes |
 | **加载体验** | 懒加载、渐进式模糊→清晰、占位符、错误兜底 |
-| **压缩能力** | 浏览器端压缩（质量/模糊/尺寸）、GPU 加速无损压缩、批量处理 |
+| **压缩能力** | 浏览器端压缩（质量/模糊/尺寸）、GPU 加速无损压缩、批量处理、Node/CLI 原生压缩 |
+| **上传编排** | `multipart/form-data` 字段映射、Authorization、自定义请求头、压缩后直传 |
 | **缓存体系** | Worker 驱动 IndexedDB、多库多表、自动过期、配额检测 |
 | **框架兼容** | React 组件、Vue/Vite/Webpack/原生 JS 工具函数、微前端隔离 |
 | **周边生态** | 按需导出、样式自定义、发布/调试指引完整 |
@@ -44,6 +47,8 @@
 - 💾 **通用缓存**：Worker 架构 IndexedDB 缓存，支持多库多表、自动过期、配额管理
 - 🔧 **浏览器压缩**：当 CDN 不支持优化时，自动启用浏览器端压缩
 - 🎯 **无损压缩**：GPU 加速无损压缩，支持批量处理和文件验证
+- 🔌 **上传编排**：支持 `form-data` 字段映射、JSON 占位符模板和压缩后直传接口
+- 🧰 **Node/CLI**：新增 `node-compress` 子入口和命令行压缩能力
 - 📦 **按需导入**：支持按需导入，减少打包体积
 
 ---
@@ -104,6 +109,53 @@ const optimized = optimizeImageUrl('https://example.com/image.jpg', {
 });
 
 const blobUrl = await loadImageWithCache(optimized);
+```
+
+### 上传编排（无 UI / 适合 Node 18+、CLI、服务脚本）
+
+```javascript
+import { uploadFileWithConfig } from 'rv-image-optimize/upload-core';
+
+const file = new File(['demo'], 'demo.webp', { type: 'image/webp' });
+
+const result = await uploadFileWithConfig(file, {
+  sourceFileName: 'origin.png',
+  sourceFileSize: 12345,
+}, {
+  url: 'https://example.com/admin/upload',
+  method: 'POST',
+  authorization: 'Bearer your-token',
+  dataMode: 'formFields',
+  formFields: [
+    { key: 'file', valueType: 'file' },
+    { key: 'fileName', valueType: 'fileName' },
+    { key: 'fileType', valueType: 'fileType' },
+    { key: 'fileSize', valueType: 'fileSize' },
+    { key: 'biz', valueType: 'text', textValue: 'review' },
+  ],
+});
+
+console.log(result.status, result.data);
+```
+
+### Node / CLI 压缩（无 UI）
+
+```javascript
+import { compressImageFile } from 'rv-image-optimize/node-compress';
+
+const result = await compressImageFile('./images/demo.png', {
+  outputDir: './compressed',
+  format: 'webp',
+  quality: 82,
+  maxWidth: 1600,
+});
+
+console.log(result.outputPath, result.compressedSizeFormatted);
+```
+
+```bash
+rv-image-optimize ./images --output-dir ./compressed --format webp --quality 82
+rv-image-optimize ./images --format webp --replace-original
 ```
 
 ---
@@ -179,13 +231,142 @@ module.exports = {
 - **加载辅助**：`preloadImage(s)`, `loadImageProgressive`, `loadImagesProgressively`
 - **浏览器压缩**：`compressImageInBrowser`, `dataURLToBlob`
 - **无损压缩**：`losslessCompress`, `losslessCompressBatch`
+- **Node 压缩**：`compressImageBuffer`, `compressImageFile`, `compressImageDirectory`
+- **上传核心**：`normalizeUploadConfig`, `buildUploadFormData`, `uploadFileWithConfig`
+- **浏览器上传编排**：`compressAndUploadFiles`
 - **缓存体系**：`setCache`, `getCache`, `loadImageWithCache`, `checkStorageQuota`, `cleanExpiredCache`, `deleteDatabase` 等
 
 ### 详细文档
 
 - **渐进式加载**：详见 [ProgressiveImage.md](./ProgressiveImage.md)
 - **无损压缩**：详见 [LOSSLESS_COMPRESS.md](./LOSSLESS_COMPRESS.md)
+- **上传编排**：详见 [UPLOAD_PIPELINE.md](./UPLOAD_PIPELINE.md)
+- **Node / CLI 压缩**：详见 [NODE_CLI_COMPRESS.md](./NODE_CLI_COMPRESS.md)
 - **样式自定义**：详见 [STYLE_CUSTOMIZATION.md](./STYLE_CUSTOMIZATION.md)
+
+---
+
+## 上传编排（压缩后上传）
+
+### 入口说明
+
+| 入口 | 适用场景 |
+| --- | --- |
+| `rv-image-optimize/upload-core` | 无 UI 的上传核心，适合 Node 18+、CLI、服务脚本、自定义前端 |
+| `rv-image-optimize/upload` | 浏览器端“压缩后上传”编排，内部会调用 `losslessCompress` |
+| `rv-image-optimize/utils-only` | 非 React 项目可直接使用上传核心和浏览器压缩上传能力 |
+
+### 支持的上传配置
+
+- `url`: 上传地址
+- `method`: 请求方式，默认 `POST`
+- `authorization`: 完整授权值，例如 `Bearer xxx`
+- `headers`: 额外请求头对象
+- `dataMode`: `formFields` 或 `jsonTemplate`
+- `formFields`: 可视化字段映射
+- `fileFieldKey`: 当未显式声明文件字段时的兜底 key
+
+### 支持的动态值类型
+
+- `file`
+- `fileName`
+- `fileType`
+- `fileSize`
+- `originalFileName`
+- `originalFileSize`
+- `compressedFileName`
+- `compressedFileType`
+- `compressedFileSize`
+- `savedSize`
+- `savedPercentage`
+
+### JSON 模板占位符
+
+```json
+{
+  "file": "{{file}}",
+  "fileName": "{{fileName}}",
+  "meta": {
+    "originalFileName": "{{originalFileName}}",
+    "fileSize": "{{fileSize}}"
+  }
+}
+```
+
+### 浏览器里压缩后上传
+
+```javascript
+import { compressAndUploadFiles } from 'rv-image-optimize/upload';
+
+const results = await compressAndUploadFiles(fileInput.files, {
+  maxWidth: 1920,
+  format: 'webp',
+  quality: 0.85,
+}, {
+  url: 'https://example.com/admin/upload',
+  authorization: 'Bearer your-token',
+  dataMode: 'formFields',
+  formFields: [
+    { key: 'file', valueType: 'file' },
+    { key: 'fileName', valueType: 'fileName' },
+  ],
+}, {
+  concurrency: 2,
+  onProgress: ({ completed, total }) => {
+    console.log(`uploaded ${completed}/${total}`);
+  },
+});
+```
+
+提示：
+- `upload-core` 不依赖压缩逻辑，更适合未来 Node/CLI 复用
+- `upload` 依赖浏览器环境里的无损压缩能力
+- 如果在旧版 Node 中使用 `upload-core`，请自行提供 `fetch` / `FormData` / `File` 兼容能力
+
+---
+
+## Node / CLI 压缩入口
+
+### 入口说明
+
+| 入口 | 适用场景 |
+| --- | --- |
+| `rv-image-optimize/node-compress` | Node 18+ 服务脚本、批处理任务、CLI、AI Agent |
+| `rv-image-optimize/lossless` | 浏览器环境压缩，依赖 Canvas / Image 等浏览器 API |
+| `rv-image-optimize` CLI | 命令行压缩单文件或整个目录 |
+
+### Node API 示例
+
+```javascript
+import { compressImageDirectory } from 'rv-image-optimize/node-compress';
+
+const summary = await compressImageDirectory('./images', {
+  outputDir: './compressed',
+  format: 'avif',
+  quality: 70,
+  recursive: true,
+  concurrency: 4,
+});
+
+console.log(summary.total, summary.success, summary.failed);
+```
+
+### CLI 示例
+
+```bash
+rv-image-optimize ./images --output-dir ./compressed --format webp --quality 82
+rv-image-optimize ./images --output-dir ./compressed --format webp --delete-original
+rv-image-optimize ./images --format webp --replace-original
+rv-image-optimize ./images --output-dir ./compressed --json
+```
+
+提示：
+- `node-compress` 基于 Node 原生依赖实现，不走浏览器 Canvas 压缩链路
+- CLI 默认保留原图，并把压缩结果写到新文件
+- `--delete-original` 会在压缩结果写入成功后删除原图
+- `--replace-original` 会用压缩结果替换原图，不能与 `--output` / `--output-dir` / `--suffix` 同时使用
+- 如果你需要浏览器侧压缩上传，请继续使用 `rv-image-optimize/upload`
+- 如果你需要 Node/CLI 侧上传，请使用 `rv-image-optimize/upload-core`
 
 ---
 
@@ -259,6 +440,9 @@ await setCache('user:123', userData, 24, APP_B_DB, APP_B_TABLE);
 | Vue 中报 `ReactCurrentDispatcher` | 使用 `rv-image-optimize/utils-only` 或 `dist/image-optimize-utils.cjs.js` |
 | Webpack `Module parse failed` | Webpack4 配置 `worker-loader` 并使用 CJS 入口；Webpack5 直接使用 |
 | `quality` 参数无效 | 升级到 v2.1.3+ |
+| Node / CLI 使用上传能力 | 优先使用 `rv-image-optimize/upload-core`，不要直接调用浏览器压缩 API |
+| Node 里调用 `losslessCompress` 报浏览器 API 错误 | 改用 `rv-image-optimize/node-compress` |
+| 想压缩成功后删除或替换原图 | CLI 使用 `--delete-original` 或 `--replace-original` |
 | Worker 无法加载 | 确认构建工具处理 `.worker.js`，或禁用缓存相关功能 |
 | IndexedDB 配额满 | 调用 `cleanExpiredCache()` / `deleteCache()`，或启用 `autoCleanOnQuotaError` |
 | 懒加载不触发 | 检查 `immediate` 是否为 true，或 IntersectionObserver 是否可用 |
@@ -272,8 +456,12 @@ await setCache('user:123', userData, 24, APP_B_DB, APP_B_TABLE);
 
 | 文档 | 内容 |
 | --- | --- |
+| [CHANGELOG.md](./CHANGELOG.md) | 版本变更记录与最新更新摘要 |
 | [ProgressiveImage.md](./ProgressiveImage.md) | 渐进式加载配置与示例 |
 | [LOSSLESS_COMPRESS.md](./LOSSLESS_COMPRESS.md) | 无损压缩与上传集成 |
+| [NODE_CLI_COMPRESS.md](./NODE_CLI_COMPRESS.md) | Node API 与 CLI 压缩入口 |
+| [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md) | Cursor / Claude Code / skills 型 Agent 的 CLI 接入方式 |
+| [UPLOAD_PIPELINE.md](./UPLOAD_PIPELINE.md) | 上传编排、Node/CLI 与浏览器直传说明 |
 | [STYLE_CUSTOMIZATION.md](./STYLE_CUSTOMIZATION.md) | 样式自定义 |
 | [VUE_USAGE.md](./VUE_USAGE.md) | Vue/Vite/Webpack 详细接入 |
 

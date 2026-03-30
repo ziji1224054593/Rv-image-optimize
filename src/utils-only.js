@@ -49,6 +49,24 @@ export {
   loadImageProgressiveWithCache,
 } from '../lib/imageCache.js';
 
+// 导出上传编排辅助函数
+export {
+  UPLOAD_VALUE_TYPES,
+  UPLOAD_PLACEHOLDERS,
+  normalizeUploadConfig,
+  buildUploadContext,
+  buildUploadRequestHeaders,
+  buildUploadFormData,
+  createUploadPayloadPreview,
+  uploadFileWithConfig,
+  uploadCompressedFile,
+} from '../lib/uploadCore.js';
+
+// 导出浏览器压缩后上传能力
+export {
+  compressAndUploadFiles,
+} from '../lib/uploadPipeline.js';
+
 // 注意：不导出 React 组件（LazyImage 和 ProgressiveImage）
 // 如果需要使用组件，请在 React 项目中使用，或使用工具函数自行实现
 
