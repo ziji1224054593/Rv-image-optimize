@@ -9,7 +9,7 @@
 ![Node CLI](https://img.shields.io/badge/Node%20CLI-supported-3c873a?logo=nodedotjs&logoColor=fff)
 ![Agent Ready](https://img.shields.io/badge/Agent-Cursor%20%7C%20Claude%20Code%20%7C%20Skills-8b5cf6)
 
-> 最新版本：**v3.0.0**
+> 最新版本：**v3.0.3**
 >
 > `3.x` 只保证 `exports` 中声明的正式入口兼容，不再支持 `src/*`、`lib/*`、`dist/*` 这类内部文件直引。
 
@@ -18,6 +18,7 @@
 ## 插件亮点
 
 - 🚀 跨框架可用：同一个包同时覆盖 React 组件、Vue / Webpack / 原生 JS 工具函数，以及 Node / CLI 场景
+- 🌐 跨语言调用友好：Java / Python / PHP 等后端可直接通过 CLI 复用压缩能力，不必先单独重写图片处理链路
 - 🖼️ 图片优化能力完整：支持多 CDN 参数适配、自动格式选择、响应式图片、懒加载和渐进式加载
 - ⚙️ 浏览器与服务端双压缩链路：既支持浏览器端压缩 / 无损压缩，也支持 `node-compress` 在 Node 环境原生处理图片
 - 📤 上传链路可复用：提供 `upload-core` 和 `upload` 两层入口，既能单独上传，也能做“压缩后上传”编排
@@ -144,6 +145,7 @@ README 只保留首页摘要。以下细节请看对应文档：
 | [ProgressiveImage.md](./ProgressiveImage.md) | 渐进式加载配置与示例 |
 | [LOSSLESS_COMPRESS.md](./LOSSLESS_COMPRESS.md) | 无损压缩能力与 API |
 | [NODE_CLI_COMPRESS.md](./NODE_CLI_COMPRESS.md) | Node API 与 CLI 压缩入口 |
+| [MULTI_LANGUAGE_CLI_USAGE.md](./MULTI_LANGUAGE_CLI_USAGE.md) | Java / Python / PHP 等后端通过 CLI 调用说明 |
 | [UPLOAD_PIPELINE.md](./UPLOAD_PIPELINE.md) | 上传编排、`upload-core` / `upload` 说明 |
 | [STYLE_CUSTOMIZATION.md](./STYLE_CUSTOMIZATION.md) | 样式自定义 |
 | [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md) | Cursor / Claude Code / skills / Agent CLI 集成说明 |

@@ -1,6 +1,6 @@
 {
   "name": "rv-image-optimize",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs",
@@ -12,6 +12,7 @@
     "lib",
     "types",
     "README.md",
+    "MULTI_LANGUAGE_CLI_USAGE.md",
     "REACT_MIGRATION_3X.md",
     "CHANGELOG.md",
     "LICENSE"

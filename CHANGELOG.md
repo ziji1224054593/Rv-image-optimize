@@ -2,6 +2,15 @@
 
 本文档记录 `rv-image-optimize` 预览页和核心能力的重要更新。
 
+## v3.0.3
+
+发布时间：2026-03-30
+
+### 文档
+
+- 更新 `README.md` 的插件亮点，补充跨语言通过 CLI 调用的能力说明。
+- 新增 `MULTI_LANGUAGE_CLI_USAGE.md`，集中说明 Java / Python / PHP 等后端如何复用 CLI 进行图片压缩。
+
 ## v3.0.2
 
 发布时间：2026-03-30
