@@ -1,14 +1,16 @@
 {
   "name": "rv-image-optimize",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs",
   "module": "./dist/image-optimize.es.js",
+  "types": "./types/index.d.ts",
   "files": [
     "bin",
     "dist",
     "lib",
+    "types",
     "README.md",
     "REACT_MIGRATION_3X.md",
     "CHANGELOG.md",
@@ -16,31 +18,53 @@
   ],
   "exports": {
     ".": {
+      "types": "./types/index.d.ts",
       "import": "./dist/image-optimize.es.js",
       "require": "./dist/image-optimize.cjs",
       "default": "./dist/image-optimize.es.js"
     },
     "./utils-only": {
+      "types": "./types/index.d.ts",
       "import": "./dist/image-optimize-utils.es.js",
       "require": "./dist/image-optimize-utils.cjs",
       "default": "./dist/image-optimize-utils.es.js"
     },
-    "./lossless": "./lib/losslessCompress.js",
-    "./node-compress": "./lib/nodeCompress.js",
-    "./upload-core": "./lib/uploadCore.js",
-    "./upload": "./lib/uploadPipeline.js",
-    "./cache": "./lib/imageCache.js",
+    "./lossless": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/losslessCompress.js"
+    },
+    "./node-compress": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/nodeCompress.js"
+    },
+    "./upload-core": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/uploadCore.js"
+    },
+    "./upload": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/uploadPipeline.js"
+    },
+    "./cache": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/imageCache.js"
+    },
     "./LazyImage": {
+      "types": "./types/index.d.ts",
       "import": "./dist/lazy-image.es.js",
       "require": "./dist/lazy-image.cjs",
       "default": "./dist/lazy-image.es.js"
     },
     "./ProgressiveImage": {
+      "types": "./types/index.d.ts",
       "import": "./dist/progressive-image.es.js",
       "require": "./dist/progressive-image.cjs",
       "default": "./dist/progressive-image.es.js"
     },
-    "./styles": "./dist/style.css"
+    "./styles": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/style.css"
+    }
   },
   "scripts": {
     "dev": "vite",
