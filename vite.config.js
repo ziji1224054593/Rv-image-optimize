@@ -56,8 +56,8 @@ export default defineConfig(({ command, mode }) => {
       lib: {
         entry: resolve(__dirname, 'src/index.js'),
         name: 'ImageOptimize',
-        formats: ['es', 'cjs', 'umd'],
-        fileName: (format) => `image-optimize.${format}.js`,
+        formats: ['es', 'cjs'],
+        fileName: (format) => (format === 'cjs' ? 'image-optimize.cjs' : 'image-optimize.es.js'),
       },
       rollupOptions: {
         external: ['react', 'react-dom'],

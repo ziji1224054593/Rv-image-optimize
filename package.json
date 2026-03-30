@@ -1,45 +1,45 @@
 {
   "name": "rv-image-optimize",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
-  "main": "./dist/image-optimize.cjs.js",
+  "main": "./dist/image-optimize.cjs",
   "module": "./dist/image-optimize.es.js",
-  "browser": "./dist/image-optimize.umd.js",
   "files": [
     "bin",
     "dist",
-    "src",
     "lib",
-    "*.md",
+    "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "exports": {
     ".": {
       "import": "./dist/image-optimize.es.js",
-      "require": "./dist/image-optimize.cjs.js",
-      "browser": "./dist/image-optimize.umd.js",
+      "require": "./dist/image-optimize.cjs",
       "default": "./dist/image-optimize.es.js"
     },
     "./utils-only": {
-      "development": "./dist/image-optimize-utils.es.js",
       "import": "./dist/image-optimize-utils.es.js",
-      "require": "./dist/image-optimize-utils.cjs.js",
-      "browser": "./dist/image-optimize-utils.umd.js",
-      "module": "./dist/image-optimize-utils.es.js",
+      "require": "./dist/image-optimize-utils.cjs",
       "default": "./dist/image-optimize-utils.es.js"
     },
-    "./utils": "./lib/imageOptimize.js",
     "./lossless": "./lib/losslessCompress.js",
     "./node-compress": "./lib/nodeCompress.js",
     "./upload-core": "./lib/uploadCore.js",
     "./upload": "./lib/uploadPipeline.js",
     "./cache": "./lib/imageCache.js",
-    "./LazyImage": "./src/LazyImage.jsx",
-    "./ProgressiveImage": "./src/ProgressiveImage.jsx",
-    "./styles": "./dist/style.css",
-    "./lib/*": "./lib/*.js",
-    "./src/*": "./src/*.{js,jsx}"
+    "./LazyImage": {
+      "import": "./dist/lazy-image.es.js",
+      "require": "./dist/lazy-image.cjs",
+      "default": "./dist/lazy-image.es.js"
+    },
+    "./ProgressiveImage": {
+      "import": "./dist/progressive-image.es.js",
+      "require": "./dist/progressive-image.cjs",
+      "default": "./dist/progressive-image.es.js"
+    },
+    "./styles": "./dist/style.css"
   },
   "scripts": {
     "dev": "vite",

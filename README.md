@@ -2,9 +2,9 @@
 
 高性能、跨框架的图片优化与懒加载解决方案。内置 React 组件、渐进式加载、浏览器/无损压缩和 IndexedDB 通用缓存，同时提供 `utils-only` 入口，以及面向 Node/CLI 的独立压缩与上传子入口，方便不同运行环境按需接入。
 
-> 最新版本：**v2.3.0**（新增上传编排能力，并补充 Node/CLI 压缩入口）
+> 最新版本：**v3.0.0**（收紧公开导出面，移除内部文件直引，保留稳定子路径入口）
 >
-> ⚠️ Vue / Webpack / 原生项目务必使用 `rv-image-optimize/utils-only` 或 `dist/image-optimize-utils.*` 入口，避免导入 React 组件导致错误。详见 [VUE_USAGE.md](./VUE_USAGE.md)。
+> ⚠️ 从 `3.x` 开始，仅保证 `exports` 中声明的正式入口兼容，不再支持 `src/*`、`lib/*`、`dist/*` 这类内部文件直引。Vue / Webpack / 原生项目请统一使用 `rv-image-optimize/utils-only`。详见 [VUE_USAGE.md](./VUE_USAGE.md)。
 
 ### 插件预览地址 
 #### [插件预览地址](https://imageoptimize.gitee.io/rv-image-optimize)
@@ -66,11 +66,22 @@ npm run build
 ```
 
 `dist/` 将生成：
-- `image-optimize.[es|cjs|umd].js`：React 组件版本
-- `image-optimize-utils.[es|cjs|umd].js`：工具函数版本（不含 React）
+- `image-optimize.es.js` / `image-optimize.cjs`：React 组件版本
+- `image-optimize-utils.es.js` / `image-optimize-utils.cjs`：工具函数版本（不含 React）
+- `lazy-image.es.js` / `lazy-image.cjs`：稳定的 `LazyImage` 子入口包装文件
+- `progressive-image.es.js` / `progressive-image.cjs`：稳定的 `ProgressiveImage` 子入口包装文件
 - `style.css`
 
 更多发布流程：见 [PUBLISH.md](./PUBLISH.md)。
+
+### 3.x 迁移提示
+
+- 如果你是第一次安装 `rv-image-optimize`，并且直接使用 `3.x`，可以跳过这部分迁移说明
+- 移除内部路径直引：`rv-image-optimize/src/*`、`rv-image-optimize/lib/*`、`rv-image-optimize/dist/*`
+- 移除 `./utils` 与 `./lib/*` / `./src/*` 这类非稳定子路径
+- 移除 UMD 构建产物，浏览器脚本直链场景请改为通过构建工具消费 ESM/CJS 正式入口
+- 保留的正式入口：`rv-image-optimize`、`rv-image-optimize/LazyImage`、`rv-image-optimize/ProgressiveImage`、`rv-image-optimize/utils-only`、`rv-image-optimize/styles`、`rv-image-optimize/lossless`、`rv-image-optimize/node-compress`、`rv-image-optimize/upload-core`、`rv-image-optimize/upload`、`rv-image-optimize/cache`
+- React 旧项目升级对照：见 [REACT_MIGRATION_3X.md](./REACT_MIGRATION_3X.md)
 
 ---
 
@@ -166,6 +177,7 @@ rv-image-optimize ./images --format webp --replace-original
 
 - **入口**：`rv-image-optimize`
 - **组件**：`LazyImage`, `ProgressiveImage`
+- **按组件导入**：`rv-image-optimize/LazyImage`、`rv-image-optimize/ProgressiveImage`
 - **样式**：`import 'rv-image-optimize/styles';`
 - **适用于**：CRA、Next.js、Remix 等
 
@@ -187,9 +199,10 @@ const optimized = computed(() => optimizeImageUrl(src.value, { width: 800, quali
 
 ### Vue / 任意框架（Webpack）
 
-- **入口**：`rv-image-optimize/utils-only`（ESM）或 `rv-image-optimize/dist/image-optimize-utils.cjs.js`
+- **入口**：`rv-image-optimize/utils-only`
 - **Webpack 5**：原生支持 Worker，直接使用
 - **Webpack 4**：需配置 `worker-loader`
+- **CommonJS**：`const { optimizeImageUrl } = require('rv-image-optimize/utils-only')`
 
 ```javascript
 // webpack.config.js（Webpack4 示例）
@@ -209,7 +222,7 @@ module.exports = {
 | 错误 | 原因 | 解决 |
 | --- | --- | --- |
 | `ReactCurrentDispatcher` | 导入了 React 组件入口 | 使用 `rv-image-optimize/utils-only` |
-| `Module parse failed` | Webpack 未处理 Worker/ESM | 使用 CJS 入口或添加 `worker-loader` |
+| `Module parse failed` | Webpack 未处理 Worker/ESM | 添加 `worker-loader`，或在 CommonJS 中使用 `require('rv-image-optimize/utils-only')` |
 | `"./utils-only" is not exported...` | 旧版本缓存 | `npm install rv-image-optimize@latest` 并重启 dev server |
 
 更多 Vue/Vite/Webpack 细节请查看 [VUE_USAGE.md](./VUE_USAGE.md)。
@@ -437,7 +450,7 @@ await setCache('user:123', userData, 24, APP_B_DB, APP_B_TABLE);
 
 | 问题 | 解决方案 |
 | --- | --- |
-| Vue 中报 `ReactCurrentDispatcher` | 使用 `rv-image-optimize/utils-only` 或 `dist/image-optimize-utils.cjs.js` |
+| Vue 中报 `ReactCurrentDispatcher` | 使用 `rv-image-optimize/utils-only`，不要导入根入口 |
 | Webpack `Module parse failed` | Webpack4 配置 `worker-loader` 并使用 CJS 入口；Webpack5 直接使用 |
 | `quality` 参数无效 | 升级到 v2.1.3+ |
 | Node / CLI 使用上传能力 | 优先使用 `rv-image-optimize/upload-core`，不要直接调用浏览器压缩 API |
@@ -457,6 +470,7 @@ await setCache('user:123', userData, 24, APP_B_DB, APP_B_TABLE);
 | 文档 | 内容 |
 | --- | --- |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本变更记录与最新更新摘要 |
+| [REACT_MIGRATION_3X.md](./REACT_MIGRATION_3X.md) | React 项目从 2.x 升级到 3.x 的迁移对照 |
 | [ProgressiveImage.md](./ProgressiveImage.md) | 渐进式加载配置与示例 |
 | [LOSSLESS_COMPRESS.md](./LOSSLESS_COMPRESS.md) | 无损压缩与上传集成 |
 | [NODE_CLI_COMPRESS.md](./NODE_CLI_COMPRESS.md) | Node API 与 CLI 压缩入口 |

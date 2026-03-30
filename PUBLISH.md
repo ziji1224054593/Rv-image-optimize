@@ -53,8 +53,11 @@ ls -la dist/
 
 应该看到以下文件：
 - `image-optimize.es.js` (ES模块)
-- `image-optimize.cjs.js` (CommonJS)
-- `image-optimize.umd.js` (UMD)
+- `image-optimize.cjs` (CommonJS)
+- `image-optimize-utils.es.js` (工具函数 ESM)
+- `image-optimize-utils.cjs` (工具函数 CommonJS)
+- `lazy-image.es.js` / `lazy-image.cjs` (React 组件子入口)
+- `progressive-image.es.js` / `progressive-image.cjs` (React 组件子入口)
 - `style.css` (样式文件)
 
 4. **验证发布内容**（重要）：

@@ -1,6 +1,6 @@
 # 样式自定义指南
 
-`image-optimize` 提供了多种方式来自定义和扩展样式，确保不会影响使用者项目的样式。
+`rv-image-optimize` 提供了多种方式来自定义和扩展样式，确保不会影响使用者项目的样式。
 
 ## 1. 使用 CSS 变量（推荐）
 
@@ -107,9 +107,9 @@
 
 ```jsx
 // 不导入默认样式
-// import 'image-optimize/styles';
+// import 'rv-image-optimize/styles';
 
-import { LazyImage } from 'image-optimize';
+import { LazyImage } from 'rv-image-optimize';
 import './my-custom-styles.css';
 
 function App() {
@@ -137,7 +137,7 @@ function App() {
 
 ```jsx
 import styles from './MyLazyImage.module.css';
-import { LazyImage } from 'image-optimize';
+import { LazyImage } from 'rv-image-optimize';
 
 <LazyImage
   src="..."
@@ -150,7 +150,7 @@ import { LazyImage } from 'image-optimize';
 
 ```jsx
 import styled from 'styled-components';
-import { LazyImage } from 'image-optimize';
+import { LazyImage } from 'rv-image-optimize';
 
 const StyledLazyImage = styled(LazyImage)`
   .image-optimize-container {
@@ -182,7 +182,7 @@ const StyledLazyImage = styled(LazyImage)`
 ## 完整示例
 
 ```jsx
-import { LazyImage } from 'image-optimize';
+import { LazyImage } from 'rv-image-optimize';
 import './custom-styles.css';
 
 function App() {
