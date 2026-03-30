@@ -10,6 +10,7 @@
     "dist",
     "lib",
     "README.md",
+    "REACT_MIGRATION_3X.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
