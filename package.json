@@ -1,6 +1,6 @@
 {
   "name": "rv-image-optimize",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs",
@@ -14,6 +14,7 @@
     "README.md",
     "MULTI_LANGUAGE_CLI_USAGE.md",
     "REACT_MIGRATION_3X.md",
+    "STATIC_IMAGE_BUILD_PLUGIN.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
@@ -37,6 +38,10 @@
     "./node-compress": {
       "types": "./types/index.d.ts",
       "default": "./lib/nodeCompress.js"
+    },
+    "./vite-plugin": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/vitePlugin.js"
     },
     "./upload-core": {
       "types": "./types/index.d.ts",

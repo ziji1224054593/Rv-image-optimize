@@ -2,6 +2,21 @@
 
 本文档记录 `rv-image-optimize` 预览页和核心能力的重要更新。
 
+## v3.0.4
+
+发布时间：2026-03-30
+
+### 新增
+
+- 新增 `rv-image-optimize/vite-plugin`，支持在 `Vite` 项目 `build` 阶段对 `dist` 中的静态图片执行无损优化。
+- 新增 `STATIC_IMAGE_BUILD_PLUGIN.md`，集中说明静态图片打包压缩插件的接入方式和配置项。
+
+### 改进
+
+- 扩展 `node-compress` 的编码参数，支持无损模式下的 WebP / AVIF 输出。
+- 预览页文档浏览新增 `MULTI_LANGUAGE_CLI_USAGE.md` 与 `STATIC_IMAGE_BUILD_PLUGIN.md` 两份文档入口。
+- 更新 `README.md`，明确说明 `Vite` 项目打包阶段的静态图片压缩支持。
+
 ## v3.0.3
 
 发布时间：2026-03-30

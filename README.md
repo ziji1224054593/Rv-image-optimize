@@ -1,6 +1,6 @@
 # rv-image-optimize
 
-高性能、跨框架的图片优化与懒加载解决方案。提供 React 组件、通用工具函数、浏览器/Node 压缩、上传编排和 IndexedDB 缓存能力，适合 React、Vue、Vite、Webpack、Node 脚本和 CLI 场景。
+高性能、跨框架的图片优化与懒加载解决方案。提供 React 组件、通用工具函数、浏览器/Node 压缩、Vite 静态图片打包压缩、上传编排和 IndexedDB 缓存能力，适合 React、Vue、Vite、Webpack、Node 脚本和 CLI 场景。
 
 ![npm version](https://img.shields.io/npm/v/rv-image-optimize?color=0ea5e9&label=npm)
 ![TypeScript](https://img.shields.io/badge/TypeScript-ready-3178c6)
@@ -9,7 +9,7 @@
 ![Node CLI](https://img.shields.io/badge/Node%20CLI-supported-3c873a?logo=nodedotjs&logoColor=fff)
 ![Agent Ready](https://img.shields.io/badge/Agent-Cursor%20%7C%20Claude%20Code%20%7C%20Skills-8b5cf6)
 
-> 最新版本：**v3.0.3**
+> 最新版本：**v3.0.4**
 >
 > `3.x` 只保证 `exports` 中声明的正式入口兼容，不再支持 `src/*`、`lib/*`、`dist/*` 这类内部文件直引。
 
@@ -21,6 +21,7 @@
 - 🌐 跨语言调用友好：Java / Python / PHP 等后端可直接通过 CLI 复用压缩能力，不必先单独重写图片处理链路
 - 🖼️ 图片优化能力完整：支持多 CDN 参数适配、自动格式选择、响应式图片、懒加载和渐进式加载
 - ⚙️ 浏览器与服务端双压缩链路：既支持浏览器端压缩 / 无损压缩，也支持 `node-compress` 在 Node 环境原生处理图片
+- 📦 支持静态图片打包压缩：可通过 `rv-image-optimize/vite-plugin` 在 `build` 后自动优化 `dist` 内静态图片
 - 📤 上传链路可复用：提供 `upload-core` 和 `upload` 两层入口，既能单独上传，也能做“压缩后上传”编排
 - 💾 缓存体系完善：内置 IndexedDB + Worker 缓存能力，支持多库多表、自动过期和配额检测
 - 🧩 `JS / TS` 都可直接接入：从 `3.x` 开始提供官方 `.d.ts`，不需要消费者手写模块声明
@@ -46,6 +47,7 @@ npm install rv-image-optimize
 - `TypeScript`：从 `3.x` 开始提供官方 `.d.ts`，开箱即用
 - React 项目：使用 `rv-image-optimize`、`rv-image-optimize/LazyImage`、`rv-image-optimize/ProgressiveImage`、`rv-image-optimize/styles`
 - Vue / 原生 JS / Webpack：使用 `rv-image-optimize/utils-only`
+- Vite 项目打包：可额外使用 `rv-image-optimize/vite-plugin`，在 `vite build` / `npm run build` 阶段自动优化 `dist` 中的静态图片
 
 如果你是第一次安装并直接使用 `3.x`，按本 README 示例接入即可，不需要看迁移文档。
 
@@ -101,6 +103,34 @@ console.log(result.outputPath, result.compressedSizeFormatted);
 rv-image-optimize ./images --output-dir ./compressed --format webp --quality 82
 ```
 
+### Vite 静态图片打包压缩
+
+适用于 `Vite` 项目构建阶段。接入后会在 `vite build` 或 `npm run build` 产物生成后，自动扫描并优化 `dist` 里的静态图片文件；默认不影响 `vite dev` 开发模式，也不改图片引用路径。
+
+```ts
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import { rvImageOptimizeVitePlugin } from 'rv-image-optimize/vite-plugin'
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    rvImageOptimizeVitePlugin({
+      includeFormats: ['png', 'webp', 'avif', 'svg'],
+    }),
+  ],
+})
+```
+
+默认更适合处理这些静态资源：
+
+- `png`
+- `webp`
+- `avif`
+- `svg`
+
+如果你需要更完整的配置项和注意事项，请查看 [STATIC_IMAGE_BUILD_PLUGIN.md](./STATIC_IMAGE_BUILD_PLUGIN.md)。
+
 ## 正式入口
 
 | 入口 | 说明 |
@@ -113,13 +143,14 @@ rv-image-optimize ./images --output-dir ./compressed --format webp --quality 82
 | `rv-image-optimize/cache` | 通用缓存能力 |
 | `rv-image-optimize/lossless` | 浏览器端无损压缩 |
 | `rv-image-optimize/node-compress` | Node 原生压缩 |
+| `rv-image-optimize/vite-plugin` | Vite 构建后静态图片压缩插件 |
 | `rv-image-optimize/upload-core` | 无 UI 上传核心 |
 | `rv-image-optimize/upload` | 浏览器端压缩后上传编排 |
 
 ## 框架接入建议
 
 - React：优先使用 `rv-image-optimize` 或 `rv-image-optimize/LazyImage`
-- Vue / Vite：统一使用 `rv-image-optimize/utils-only`
+- Vue / Vite：运行时统一使用 `rv-image-optimize/utils-only`，构建期静态图可配合 `rv-image-optimize/vite-plugin`
 - Webpack 5：可直接使用 `rv-image-optimize/utils-only`
 - Webpack 4：使用 `rv-image-optimize/utils-only`，并为 `.worker.js` 配置 `worker-loader`
 - Node / CLI：使用 `rv-image-optimize/node-compress` 或直接调用 `rv-image-optimize` CLI
@@ -145,6 +176,7 @@ README 只保留首页摘要。以下细节请看对应文档：
 | [ProgressiveImage.md](./ProgressiveImage.md) | 渐进式加载配置与示例 |
 | [LOSSLESS_COMPRESS.md](./LOSSLESS_COMPRESS.md) | 无损压缩能力与 API |
 | [NODE_CLI_COMPRESS.md](./NODE_CLI_COMPRESS.md) | Node API 与 CLI 压缩入口 |
+| [STATIC_IMAGE_BUILD_PLUGIN.md](./STATIC_IMAGE_BUILD_PLUGIN.md) | Vite 静态图片打包压缩插件说明 |
 | [MULTI_LANGUAGE_CLI_USAGE.md](./MULTI_LANGUAGE_CLI_USAGE.md) | Java / Python / PHP 等后端通过 CLI 调用说明 |
 | [UPLOAD_PIPELINE.md](./UPLOAD_PIPELINE.md) | 上传编排、`upload-core` / `upload` 说明 |
 | [STYLE_CUSTOMIZATION.md](./STYLE_CUSTOMIZATION.md) | 样式自定义 |

@@ -1,7 +1,9 @@
 import packageInfo from '../package.json';
 import changelogContent from '../CHANGELOG.md?raw';
 import readmeContent from '../README.md?raw';
+import multiLanguageCliContent from '../MULTI_LANGUAGE_CLI_USAGE.md?raw';
 import nodeCliContent from '../NODE_CLI_COMPRESS.md?raw';
+import staticImageBuildPluginContent from '../STATIC_IMAGE_BUILD_PLUGIN.md?raw';
 import uploadPipelineContent from '../UPLOAD_PIPELINE.md?raw';
 import agentIntegrationContent from '../AGENT_INTEGRATION.md?raw';
 
@@ -36,6 +38,8 @@ export const CURRENT_RELEASE = {
     { docId: 'changelog', label: '查看 Changelog' },
     { docId: 'readme', label: '查看 README' },
     { docId: 'node-cli', label: '查看 Node / CLI 使用方式' },
+    { docId: 'multi-language-cli', label: '查看多语言 CLI 调用' },
+    { docId: 'static-image-build-plugin', label: '查看静态图片打包压缩' },
     { docId: 'upload-pipeline', label: '查看 Upload Pipeline' },
     { docId: 'agent-integration', label: '查看 Agent Integration' },
   ],
@@ -59,6 +63,18 @@ export const RELEASE_DOCS = [
     title: 'Node / CLI',
     description: 'Node API、CLI 参数、文件后处理与批处理说明',
     content: nodeCliContent,
+  },
+  {
+    id: 'multi-language-cli',
+    title: 'Multi Language CLI Usage',
+    description: 'Java、Python、PHP 等后端通过 CLI 调用图片压缩能力',
+    content: multiLanguageCliContent,
+  },
+  {
+    id: 'static-image-build-plugin',
+    title: 'Static Image Build Plugin',
+    description: 'Vite 构建后静态图片打包压缩插件说明',
+    content: staticImageBuildPluginContent,
   },
   {
     id: 'upload-pipeline',

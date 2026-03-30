@@ -268,6 +268,7 @@ declare namespace RvImageOptimizeTypes {
   interface NodeCompressOptions {
     format?: OutputImageFormat | 'auto' | null;
     quality?: number;
+    lossless?: boolean;
     compressionLevel?: number;
     maxWidth?: number | null;
     maxHeight?: number | null;
@@ -328,6 +329,42 @@ declare namespace RvImageOptimizeTypes {
     success: number;
     failed: number;
     items: NodeDirectoryCompressItem[];
+  }
+
+  interface ViteStaticImageOptimizeItem {
+    filePath: string;
+    format: string;
+    changed: boolean;
+    originalSize: number;
+    compressedSize: number;
+    savedSize: number;
+    savedPercentage: number;
+    skippedReason: string | null;
+    error: string | null;
+  }
+
+  interface ViteStaticImageOptimizeSummary {
+    outDir: string;
+    total: number;
+    optimized: number;
+    skipped: number;
+    failed: number;
+    savedSize: number;
+    savedSizeFormatted: string;
+    items: ViteStaticImageOptimizeItem[];
+  }
+
+  interface ViteStaticImageOptimizePluginOptions {
+    includeFormats?: Array<'png' | 'jpg' | 'jpeg' | 'webp' | 'avif' | 'svg'>;
+    exclude?: Array<string | RegExp>;
+    quality?: number;
+    lossless?: boolean;
+    compressionLevel?: number;
+    concurrency?: number;
+    minSavings?: number;
+    log?: boolean;
+    filter?: (filePath: string, format: string) => boolean;
+    onComplete?: (summary: ViteStaticImageOptimizeSummary) => void | Promise<void>;
   }
 
   interface UploadFormField {
@@ -710,6 +747,18 @@ declare module 'rv-image-optimize/node-compress' {
   export function compressImageBuffer(inputBuffer: ArrayBuffer | Uint8Array, options?: NodeCompressOptions): Promise<NodeCompressResult>;
   export function compressImageFile(inputPath: string, options?: NodeCompressOptions): Promise<NodeCompressResult>;
   export function compressImageDirectory(inputDir: string, options?: NodeCompressOptions): Promise<NodeDirectoryCompressResult>;
+}
+
+declare module 'rv-image-optimize/vite-plugin' {
+  export interface ViteStaticImageOptimizeItem extends RvImageOptimizeTypes.ViteStaticImageOptimizeItem {}
+  export interface ViteStaticImageOptimizeSummary extends RvImageOptimizeTypes.ViteStaticImageOptimizeSummary {}
+  export interface ViteStaticImageOptimizePluginOptions extends RvImageOptimizeTypes.ViteStaticImageOptimizePluginOptions {}
+
+  export const VITE_STATIC_IMAGE_DEFAULT_FORMATS: string[];
+  export function rvImageOptimizeVitePlugin(
+    options?: ViteStaticImageOptimizePluginOptions,
+  ): import('vite').Plugin;
+  export default rvImageOptimizeVitePlugin;
 }
 
 declare module 'rv-image-optimize/LazyImage' {
