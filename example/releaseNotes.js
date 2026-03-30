@@ -1,4 +1,6 @@
 import packageInfo from '../package.json';
+import agentsContent from '../AGENTS.md?raw';
+import aiToolkitContent from '../AI_TOOLKIT.md?raw';
 import changelogContent from '../CHANGELOG.md?raw';
 import readmeContent from '../README.md?raw';
 import multiLanguageCliContent from '../MULTI_LANGUAGE_CLI_USAGE.md?raw';
@@ -37,6 +39,8 @@ export const CURRENT_RELEASE = {
   quickLinks: [
     { docId: 'changelog', label: '查看 Changelog' },
     { docId: 'readme', label: '查看 README' },
+    { docId: 'agents', label: '查看 AGENTS' },
+    { docId: 'ai-toolkit', label: '查看 AI Toolkit' },
     { docId: 'node-cli', label: '查看 Node / CLI 使用方式' },
     { docId: 'multi-language-cli', label: '查看多语言 CLI 调用' },
     { docId: 'static-image-build-plugin', label: '查看静态图片打包压缩' },
@@ -57,6 +61,18 @@ export const RELEASE_DOCS = [
     title: 'README',
     description: '总览安装、入口、主要能力和 FAQ',
     content: readmeContent,
+  },
+  {
+    id: 'agents',
+    title: 'AGENTS',
+    description: '仓库级 Agent 规则，适合支持自动读取仓库指引的 AI',
+    content: agentsContent,
+  },
+  {
+    id: 'ai-toolkit',
+    title: 'AI Toolkit',
+    description: '专门给 AI / Agent 使用的工具摘要、入口映射和提示词模板',
+    content: aiToolkitContent,
   },
   {
     id: 'node-cli',

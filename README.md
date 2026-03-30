@@ -9,7 +9,7 @@
 ![Node CLI](https://img.shields.io/badge/Node%20CLI-supported-3c873a?logo=nodedotjs&logoColor=fff)
 ![Agent Ready](https://img.shields.io/badge/Agent-Cursor%20%7C%20Claude%20Code%20%7C%20Skills-8b5cf6)
 
-> 最新版本：**v3.0.4**
+> 最新版本：**v3.0.5**
 >
 > `3.x` 只保证 `exports` 中声明的正式入口兼容，不再支持 `src/*`、`lib/*`、`dist/*` 这类内部文件直引。
 
@@ -178,6 +178,8 @@ README 只保留首页摘要。以下细节请看对应文档：
 | [NODE_CLI_COMPRESS.md](./NODE_CLI_COMPRESS.md) | Node API 与 CLI 压缩入口 |
 | [STATIC_IMAGE_BUILD_PLUGIN.md](./STATIC_IMAGE_BUILD_PLUGIN.md) | Vite 静态图片打包压缩插件说明 |
 | [MULTI_LANGUAGE_CLI_USAGE.md](./MULTI_LANGUAGE_CLI_USAGE.md) | Java / Python / PHP 等后端通过 CLI 调用说明 |
+| [AI_TOOLKIT.md](./AI_TOOLKIT.md) | 专门给 AI / Agent 使用的工具摘要与提示词模板 |
+| [AGENTS.md](./AGENTS.md) | 仓库级 Agent 规则，适合支持自动读取仓库指引的 AI |
 | [UPLOAD_PIPELINE.md](./UPLOAD_PIPELINE.md) | 上传编排、`upload-core` / `upload` 说明 |
 | [STYLE_CUSTOMIZATION.md](./STYLE_CUSTOMIZATION.md) | 样式自定义 |
 | [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md) | Cursor / Claude Code / skills / Agent CLI 集成说明 |
