@@ -5,7 +5,7 @@ import path from 'node:path';
 import {
   compressImageDirectory,
   compressImageFile,
-} from '../lib/nodeCompress.js';
+} from '../dist/node-compress.es.js';
 
 function printHelp() {
   console.log(`

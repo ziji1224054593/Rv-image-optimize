@@ -1,5 +1,5 @@
 import React from 'react';
-import { UPLOAD_VALUE_TYPES, UPLOAD_PLACEHOLDERS } from '../lib/uploadCore.js';
+import { UPLOAD_VALUE_TYPES, UPLOAD_PLACEHOLDERS } from 'rv-image-optimize/upload-core';
 
 export const DEFAULT_UPLOAD_FORM_FIELDS = [
   { id: 'field-file', key: 'file', valueType: 'file', textValue: '' },

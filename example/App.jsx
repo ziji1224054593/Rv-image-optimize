@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { LazyImage, ProgressiveImage } from '../src/index.js';
+import {
+  LazyImage,
+  ProgressiveImage,
+  optimizeImageUrl,
+  formatFileSize,
+  loadImagesProgressively,
+  loadImageProgressive,
+} from 'rv-image-optimize';
 import UploadConfigPanel, {
   DEFAULT_UPLOAD_FORM_FIELDS,
   DEFAULT_UPLOAD_JSON_TEMPLATE,
@@ -8,16 +15,14 @@ import ReleaseAnnouncementPanel from './ReleaseAnnouncementPanel.jsx';
 import {
   losslessCompress,
   downloadCompressedImage,
-  validateImageFile
-} from '../lib/losslessCompress.js';
-import { optimizeImageUrl, formatFileSize, loadImagesProgressively, loadImageProgressive } from '../lib/imageOptimize.js';
-import { deleteCache, DEFAULT_DB_NAME, DEFAULT_STORE_NAME_GENERAL } from '../lib/imageCache.js';
+  validateImageFile,
+} from 'rv-image-optimize/lossless';
+import { deleteCache, DEFAULT_DB_NAME, DEFAULT_STORE_NAME_GENERAL } from 'rv-image-optimize/cache';
 import {
   createUploadPayloadPreview,
   normalizeUploadConfig,
-  uploadCompressedFile
-} from '../lib/uploadPipeline.js';
-import '../src/LazyImage.css';
+  uploadCompressedFile,
+} from 'rv-image-optimize/upload';
 
 function safeParseJson(value, fallback = {}) {
   if (!value || !String(value).trim()) {

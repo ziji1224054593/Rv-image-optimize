@@ -1,6 +1,6 @@
 {
   "name": "rv-image-optimize",
-  "version": "3.0.9",
+  "version": "3.0.11",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs",
@@ -9,16 +9,8 @@
   "files": [
     "bin",
     "dist",
-    "lib",
     "types",
     "README.md",
-    "AGENTS.md",
-    "AI_TOOLKIT.md",
-    "MULTI_LANGUAGE_CLI_USAGE.md",
-    "REACT_MIGRATION_3X.md",
-    "STATIC_IMAGE_BUILD_PLUGIN.md",
-    "WEBPACK_USAGE.md",
-    "CHANGELOG.md",
     "LICENSE"
   ],
   "exports": {
@@ -36,42 +28,49 @@
     },
     "./lossless": {
       "types": "./types/index.d.ts",
-      "default": "./lib/losslessCompress.js"
+      "import": "./dist/lossless.es.js",
+      "default": "./dist/lossless.es.js"
     },
     "./node-compress": {
       "types": "./types/index.d.ts",
-      "default": "./lib/nodeCompress.js"
+      "import": "./dist/node-compress.es.js",
+      "require": "./dist/node-compress.cjs",
+      "default": "./dist/node-compress.es.js"
     },
     "./vite-plugin": {
       "types": "./types/index.d.ts",
-      "default": "./lib/vitePlugin.js"
+      "import": "./dist/vite-plugin.es.js",
+      "default": "./dist/vite-plugin.es.js"
     },
     "./webpack-plugin": {
       "types": "./types/index.d.ts",
-      "default": "./lib/webpackPlugin.js"
+      "import": "./dist/webpack-plugin.es.js",
+      "require": "./dist/webpack-plugin.cjs",
+      "default": "./dist/webpack-plugin.es.js"
     },
     "./upload-core": {
       "types": "./types/index.d.ts",
-      "default": "./lib/uploadCore.js"
+      "import": "./dist/upload-core.es.js",
+      "default": "./dist/upload-core.es.js"
     },
     "./upload": {
       "types": "./types/index.d.ts",
-      "default": "./lib/uploadPipeline.js"
+      "import": "./dist/upload.es.js",
+      "default": "./dist/upload.es.js"
     },
     "./cache": {
       "types": "./types/index.d.ts",
-      "default": "./lib/imageCache.js"
+      "import": "./dist/cache.es.js",
+      "default": "./dist/cache.es.js"
     },
     "./LazyImage": {
       "types": "./types/index.d.ts",
       "import": "./dist/lazy-image.es.js",
-      "require": "./dist/lazy-image.cjs",
       "default": "./dist/lazy-image.es.js"
     },
     "./ProgressiveImage": {
       "types": "./types/index.d.ts",
       "import": "./dist/progressive-image.es.js",
-      "require": "./dist/progressive-image.cjs",
       "default": "./dist/progressive-image.es.js"
     },
     "./styles": {
@@ -81,7 +80,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-utils-only.js",
+    "build": "node scripts/build-package.js",
     "build:static": "vite build --mode static",
     "cli": "node ./bin/rv-image-optimize.js",
     "prepublishOnly": "npm run build"
