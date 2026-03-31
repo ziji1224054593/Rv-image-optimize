@@ -11,12 +11,18 @@
 - 新增 `rv-image-optimize/webpack-plugin`，支持在 `Webpack 4 / 5` 构建阶段直接处理 `compilation assets` 中的静态图片资源。
 - 新增 `WEBPACK_USAGE.md`，集中说明 Webpack 运行时接入与构建期静态图片压缩插件的使用方式。
 
+### 修复
+
+- 修复 `compressImageInBrowser()` 的运行时返回值与类型声明不一致的问题，浏览器端压缩现在统一返回结构化结果对象，包含 `file`、`blob`、`dataURL`、体积统计和输出格式等字段。
+- 修复 `deleteDatabase()` 在浏览器中可能长期挂起的问题，删除数据库前会尝试关闭已缓存连接，并补充 `blocked` 等待与超时保护，避免调用方无限等待。
+
 ### 文档
 
 - 新增 `AI_TOOLKIT.md`，提供适合直接喂给其他 AI / Agent 的工具摘要、入口映射与提示词模板。
 - 新增 `AGENTS.md`，提供仓库级 Agent 规则，便于支持自动读取仓库指引的 AI 使用本工具。
 - 更新 `README.md` 文档导航，并在预览页文档浏览中加入 `AI_TOOLKIT.md` 与 `AGENTS.md` 入口。
 - 更新 `STATIC_IMAGE_BUILD_PLUGIN.md`，统一覆盖 `Vite / Webpack` 的静态图片打包压缩插件说明。
+- 更新 `README.md`、`VUE_USAGE.md` 与 `WEBPACK_USAGE.md`，补充 `compressImageInBrowser()` 的返回对象说明，以及 `deleteDatabase()` 的阻塞与超时行为说明。
 
 ## v3.0.4
 

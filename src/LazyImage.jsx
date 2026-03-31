@@ -629,12 +629,17 @@ export default function LazyImage({
               smooth: optimize.smooth !== undefined ? optimize.smooth : true,
               format: optimize.format || null,
             })
-              .then((dataURL) => {
-                setCompressedSrc(dataURL);
+              .then((compressionResult) => {
+                const previewUrl = compressionResult?.dataURL || compressionResult?.url || null;
+                if (!previewUrl) {
+                  throw new Error('浏览器端压缩结果缺少可用预览地址');
+                }
+
+                setCompressedSrc(previewUrl);
                 setIsCompressing(false);
                 
                 // 计算压缩效果
-                const blob = dataURLToBlob(dataURL);
+                const blob = compressionResult?.blob || dataURLToBlob(previewUrl);
                 // console.log('✅ 已启用浏览器端压缩');
                 // console.log(`压缩后大小: ${formatFileSize(blob.size)}`);
               })

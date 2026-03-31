@@ -79,12 +79,19 @@ declare namespace RvImageOptimizeTypes {
     file: File;
     blob: Blob;
     url?: string;
+    dataURL?: string;
     originalSize: number;
     compressedSize: number;
     savedSize: number;
     savedPercentage: number;
     compressedFileName?: string;
     compressedFormat?: string;
+    originalWidth?: number | null;
+    originalHeight?: number | null;
+    compressedWidth?: number | null;
+    compressedHeight?: number | null;
+    mimeType?: string;
+    sourceFileName?: string;
     [key: string]: unknown;
   }
 

@@ -87,6 +87,32 @@ const blobUrl = await loadImageWithCache(optimized);
 
 如果你是 `Webpack` 项目，建议继续查看 [WEBPACK_USAGE.md](./WEBPACK_USAGE.md)。
 
+### 浏览器端压缩返回值
+
+`compressImageInBrowser()` 现在返回结构化结果对象，而不是单独的 `dataURL` 字符串：
+
+```javascript
+import { compressImageInBrowser } from 'rv-image-optimize/utils-only';
+
+const result = await compressImageInBrowser(file, {
+  maxWidth: 1280,
+  quality: 0.82,
+  format: 'webp',
+});
+
+console.log(result.compressedSize, result.savedPercentage);
+previewImg.src = result.dataURL || result.url;
+formData.append('file', result.file);
+```
+
+常用字段：
+
+- `file`：压缩后的 `File`，适合直接上传
+- `blob`：压缩后的 `Blob`
+- `dataURL` / `url`：可直接用于预览
+- `originalSize` / `compressedSize` / `savedPercentage`
+- `compressedFileName` / `compressedFormat`
+
 ### Node / CLI
 
 ```javascript
@@ -193,6 +219,7 @@ export default {
 | Webpack 构建期想自动压缩静态图片 | 使用 `rv-image-optimize/webpack-plugin` |
 | Node 里调用 `losslessCompress` 报浏览器 API 错误 | 改用 `rv-image-optimize/node-compress` |
 | 想压缩成功后删除或替换原图 | CLI 使用 `--delete-original` 或 `--replace-original` |
+| 想删除整个缓存数据库但浏览器一直挂起 | 当前版本已为 `deleteDatabase()` 增加关闭连接、阻塞等待和超时保护；如仍被占用会抛出明确错误 |
 
 ## 迁移与详细文档
 

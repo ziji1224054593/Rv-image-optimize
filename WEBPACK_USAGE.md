@@ -91,6 +91,37 @@ const blobUrl = await loadImageWithCache(optimized);
 document.querySelector('#preview').src = blobUrl;
 ```
 
+### 浏览器端压缩返回对象
+
+```javascript
+import { compressImageInBrowser } from 'rv-image-optimize/utils-only';
+
+const input = document.querySelector('#file');
+const preview = document.querySelector('#preview');
+
+input.onchange = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const result = await compressImageInBrowser(file, {
+    maxWidth: 1280,
+    quality: 0.82,
+    format: 'webp',
+  });
+
+  preview.src = result.dataURL || result.url;
+  console.log(result.compressedSize, result.savedPercentage, result.compressedFileName);
+};
+```
+
+常用返回字段：
+
+- `file`：压缩后的 `File`
+- `blob`：压缩后的 `Blob`
+- `dataURL` / `url`：可直接用于预览
+- `originalSize` / `compressedSize` / `savedPercentage`
+- `compressedFileName` / `compressedFormat`
+
 ## Webpack 4
 
 ### 构建期静态图片压缩插件
@@ -192,7 +223,7 @@ import { optimizeImageUrl } from 'rv-image-optimize/utils-only';
 
 - 图片优化：`optimizeImageUrl`、`generateResponsiveImage`、`detectCDN`
 - 渐进式加载：`loadImageProgressive`、`loadImagesProgressively`
-- 缓存：`setCache`、`getCache`、`loadImageWithCache`、`cleanExpiredCache`
+- 缓存：`setCache`、`getCache`、`loadImageWithCache`、`cleanExpiredCache`、`deleteDatabase`
 - 浏览器压缩：`compressImageInBrowser`、`dataURLToBlob`
 - 上传：`uploadFileWithConfig`、`compressAndUploadFiles`
 
@@ -263,6 +294,18 @@ import { rvImageOptimizeWebpackPlugin } from 'rv-image-optimize/webpack-plugin';
 - 对 `jpg/jpeg` 的默认处理策略
 
 这两项目前仍建议按项目需要单独评估。
+
+### 5. `deleteDatabase()` 很慢或像卡住
+
+原因：
+
+- 浏览器删除 IndexedDB 时，可能仍有活动连接占用数据库
+
+当前版本行为：
+
+- 删除前会尽量关闭当前缓存的数据库连接
+- 如果浏览器返回 `blocked`，会等待连接释放
+- 超时后会抛出明确错误，而不是无限挂起
 
 ## 相关文档
 

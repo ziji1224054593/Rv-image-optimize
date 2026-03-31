@@ -65,6 +65,49 @@ onMounted(async () => {
 </template>
 ```
 
+### 浏览器端压缩返回对象
+
+```vue
+<script setup>
+import { ref } from 'vue';
+import { compressImageInBrowser } from 'rv-image-optimize/utils-only';
+
+const previewUrl = ref('');
+const compressionInfo = ref(null);
+
+async function handleChange(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const result = await compressImageInBrowser(file, {
+    maxWidth: 1280,
+    quality: 0.82,
+    format: 'webp',
+  });
+
+  previewUrl.value = result.dataURL || result.url || '';
+  compressionInfo.value = {
+    compressedSize: result.compressedSize,
+    savedPercentage: result.savedPercentage,
+    compressedFileName: result.compressedFileName,
+  };
+}
+</script>
+
+<template>
+  <input type="file" accept="image/*" @change="handleChange" />
+  <img v-if="previewUrl" :src="previewUrl" alt="压缩预览" />
+</template>
+```
+
+常用返回字段：
+
+- `file`：压缩后的 `File`
+- `blob`：压缩后的 `Blob`
+- `dataURL` / `url`：压缩预览地址
+- `originalSize` / `compressedSize` / `savedPercentage`
+- `compressedFileName` / `compressedFormat`
+
 ## 3. 在 Vue 中封装自己的图片组件
 
 `3.x` 不再通过 npm 包直接导出 `LazyImage.vue` 与 `LazyImage.css`。如果你需要 Vue 组件形态，推荐基于 `utils-only` 自己封一层，这样组件 API 也更容易贴合你的业务。
@@ -131,7 +174,7 @@ const { optimizeImageUrl, loadImageWithCache } = require('rv-image-optimize/util
 
 - 图片优化：`optimizeImageUrl`、`generateResponsiveImage`、`detectCDN`
 - 渐进式加载：`loadImageProgressive`、`loadImagesProgressively`
-- 缓存：`setCache`、`getCache`、`loadImageWithCache`、`cleanExpiredCache`
+- 缓存：`setCache`、`getCache`、`loadImageWithCache`、`cleanExpiredCache`、`deleteDatabase`
 - 浏览器压缩：`compressImageInBrowser`、`dataURLToBlob`
 - 上传：`uploadFileWithConfig`、`compressAndUploadFiles`
 
@@ -141,6 +184,7 @@ const { optimizeImageUrl, loadImageWithCache } = require('rv-image-optimize/util
 - `Module parse failed`：Webpack 4 未处理 Worker，请补 `worker-loader`
 - `"./utils-only" is not exported`：通常是旧版本缓存，重新安装最新版并重启 dev server
 - 想使用渐进式效果：请参考 [ProgressiveImage.md](./ProgressiveImage.md) 里的 Vue 工具函数示例
+- `deleteDatabase()` 很慢或像卡住：当前版本已增加关闭连接、阻塞等待与超时保护；如果数据库仍被其他页面占用，会抛出明确错误
 
 ## 更多信息
 
