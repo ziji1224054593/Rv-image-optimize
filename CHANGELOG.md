@@ -2,6 +2,19 @@
 
 本文档记录 `rv-image-optimize` 预览页和核心能力的重要更新。
 
+## v3.0.8
+
+发布时间：2026-03-31
+
+### 修复
+
+- 进一步修复 `deleteDatabase()` 在浏览器开发环境中可能被旧 `IndexedDB` 连接阻塞的问题；现在主线程缓存、独立 Worker 和内联 Worker 打开的数据库连接都会在 `versionchange` 时自动关闭，删库前也会主动通知 Worker 释放连接。
+- 修复 Vite 热更新或同页旧模块实例仍持有缓存数据库连接时，`deleteDatabase()` 容易持续触发 `blocked` 并最终超时的问题，降低 `vue-demo-rv-image-optimize-cache` 一类开发期缓存库删除失败的概率。
+
+### 文档
+
+- 更新 `README.md`、`VUE_USAGE.md` 与 `WEBPACK_USAGE.md`，补充这次 `deleteDatabase()` 对主线程 / Worker 连接释放策略的说明，并明确开发环境下仍需刷新旧页面或关闭同源标签页后再重试。
+
 ## v3.0.7
 
 发布时间：2026-03-31

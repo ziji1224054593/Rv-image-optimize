@@ -219,7 +219,7 @@ export default {
 | Webpack 构建期想自动压缩静态图片 | 使用 `rv-image-optimize/webpack-plugin` |
 | Node 里调用 `losslessCompress` 报浏览器 API 错误 | 改用 `rv-image-optimize/node-compress` |
 | 想压缩成功后删除或替换原图 | CLI 使用 `--delete-original` 或 `--replace-original` |
-| 想删除整个缓存数据库但浏览器一直挂起 | 当前版本已为 `deleteDatabase()` 增加关闭连接、阻塞等待和超时保护；如仍被占用会抛出明确错误 |
+| 想删除整个缓存数据库但浏览器一直挂起 | 当前版本会在删库或版本变更时主动关闭主线程 / Worker 持有的 IndexedDB 连接，并保留阻塞等待与超时保护；如果开发环境里还有旧页面或同源标签页占用，刷新页面或关闭相关标签页后再重试 |
 
 ## 迁移与详细文档
 

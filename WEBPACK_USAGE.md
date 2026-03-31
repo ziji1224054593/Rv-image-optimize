@@ -303,9 +303,11 @@ import { rvImageOptimizeWebpackPlugin } from 'rv-image-optimize/webpack-plugin';
 
 当前版本行为：
 
-- 删除前会尽量关闭当前缓存的数据库连接
+- 删除前会主动释放主线程缓存和 Worker 持有的数据库连接
+- 数据库收到 `versionchange` 时，会自动关闭已有连接，减少旧实例阻塞删库的概率
 - 如果浏览器返回 `blocked`，会等待连接释放
 - 超时后会抛出明确错误，而不是无限挂起
+- 如果开发环境里还有旧页面或同源标签页占用数据库，请先刷新页面或关闭相关标签页后再重试
 
 ## 相关文档
 

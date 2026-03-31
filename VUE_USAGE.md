@@ -184,7 +184,7 @@ const { optimizeImageUrl, loadImageWithCache } = require('rv-image-optimize/util
 - `Module parse failed`：Webpack 4 未处理 Worker，请补 `worker-loader`
 - `"./utils-only" is not exported`：通常是旧版本缓存，重新安装最新版并重启 dev server
 - 想使用渐进式效果：请参考 [ProgressiveImage.md](./ProgressiveImage.md) 里的 Vue 工具函数示例
-- `deleteDatabase()` 很慢或像卡住：当前版本已增加关闭连接、阻塞等待与超时保护；如果数据库仍被其他页面占用，会抛出明确错误
+- `deleteDatabase()` 很慢或像卡住：当前版本会在删库或版本变更时主动关闭主线程 / Worker 持有的 IndexedDB 连接，并保留阻塞等待与超时保护；如果开发环境里还有旧页面或同源标签页占用，请先刷新页面或关闭相关标签页后再重试
 
 ## 更多信息
 
