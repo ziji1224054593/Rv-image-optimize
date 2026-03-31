@@ -2,6 +2,19 @@
 
 本文档记录 `rv-image-optimize` 预览页和核心能力的重要更新。
 
+## v3.0.7
+
+发布时间：2026-03-31
+
+### 修复
+
+- 修复 `compressImageInBrowser()` 的运行时返回值与类型声明不一致的问题，浏览器端压缩现在统一返回结构化结果对象，包含 `file`、`blob`、`dataURL`、体积统计和输出格式等字段。
+- 修复 `deleteDatabase()` 在浏览器中可能长期挂起的问题，删除数据库前会尝试关闭已缓存连接，并补充 `blocked` 等待与超时保护，避免调用方无限等待。
+
+### 文档
+
+- 更新 `README.md`、`VUE_USAGE.md` 与 `WEBPACK_USAGE.md`，补充 `compressImageInBrowser()` 的返回对象说明，以及 `deleteDatabase()` 的阻塞与超时行为说明。
+
 ## v3.0.6
 
 发布时间：2026-03-30
