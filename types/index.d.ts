@@ -772,7 +772,7 @@ declare module 'rv-image-optimize/lossless' {
     imageSource: File | Blob | string | HTMLImageElement,
   ): Promise<LosslessSuitabilityResult>;
   export function downloadCompressedImage(
-    compressedImage: LosslessCompressionResult | Blob | File,
+    compressedImage: LosslessCompressionResult | BrowserCompressionResult | Blob | File | string,
     filename?: string | null,
   ): void;
   export function getGPUSupportInfo(): GPUSupportInfo;

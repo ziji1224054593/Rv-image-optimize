@@ -2,6 +2,19 @@
 
 本文档记录 `rv-image-optimize` 预览页和核心能力的重要更新。
 
+## v3.0.9
+
+发布时间：2026-03-31
+
+### 修复
+
+- 修复 `downloadCompressedImage()` 的运行时兼容性问题；现在除了 `Blob` 和 `DataURL` 外，也支持直接传入 `losslessCompress()` / `compressImageInBrowser()` 返回的结果对象，不再因为 demo 直接传结果对象而抛出“不支持的图片格式”。
+- 修复下载文件名与扩展名推断不稳定的问题；当调用方未显式传入文件名时，会优先使用压缩结果中的 `compressedFileName` 或 `file.name`，否则再根据 `blob.type` 推断扩展名。
+
+### 文档
+
+- 更新 `LOSSLESS_COMPRESS.md` 与类型声明，补充 `downloadCompressedImage()` 支持压缩结果对象的用法，保持文档、类型与运行时行为一致。
+
 ## v3.0.8
 
 发布时间：2026-03-31

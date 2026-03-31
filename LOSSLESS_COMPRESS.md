@@ -280,7 +280,7 @@ getGPUSupportInfo(): GPUSupportInfo
 #### 函数签名
 ```typescript
 downloadCompressedImage(
-  compressedImage: Blob | string,
+  compressedImage: Blob | string | LosslessCompressionResult | BrowserCompressionResult,
   filename?: string
 ): void
 ```
@@ -289,7 +289,7 @@ downloadCompressedImage(
 
 | 参数名 | 类型 | 必填 | 默认值 | 说明 |
 |--------|------|------|--------|------|
-| `compressedImage` | `Blob \| string` | ✅ | - | 压缩后的图片（Blob 或 DataURL） |
+| `compressedImage` | `Blob \| string \| 压缩结果对象` | ✅ | - | 压缩后的图片（Blob、DataURL，或包含 `blob/file/dataURL` 的压缩结果对象） |
 | `filename` | `string` | ❌ | 时间戳 | 文件名 |
 
 #### 返回值
@@ -512,7 +512,7 @@ fileInput.onchange = async (e) => {
   console.log('Element UI 格式文件信息:', result.fileInfo);
   
   // 下载压缩后的图片
-  downloadCompressedImage(result.blob, `compressed-${file.name}`);
+  downloadCompressedImage(result, `compressed-${file.name}`);
 };
 ```
 
