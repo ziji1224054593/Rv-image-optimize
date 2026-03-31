@@ -95,6 +95,8 @@ const optimizedSrc = computed(() => optimizeImageUrl(props.src, {
 
 ## 4. Webpack 使用说明
 
+如果你只关心 `Webpack`，建议优先查看独立文档 [WEBPACK_USAGE.md](./WEBPACK_USAGE.md)。
+
 ### Webpack 5
 
 - 直接使用 `rv-image-optimize/utils-only`

@@ -367,6 +367,42 @@ declare namespace RvImageOptimizeTypes {
     onComplete?: (summary: ViteStaticImageOptimizeSummary) => void | Promise<void>;
   }
 
+  interface WebpackStaticImageOptimizeItem {
+    assetName: string;
+    format: string;
+    changed: boolean;
+    originalSize: number;
+    compressedSize: number;
+    savedSize: number;
+    savedPercentage: number;
+    skippedReason: string | null;
+    error: string | null;
+  }
+
+  interface WebpackStaticImageOptimizeSummary {
+    outputPath: string;
+    total: number;
+    optimized: number;
+    skipped: number;
+    failed: number;
+    savedSize: number;
+    savedSizeFormatted: string;
+    items: WebpackStaticImageOptimizeItem[];
+  }
+
+  interface WebpackStaticImageOptimizePluginOptions {
+    includeFormats?: Array<'png' | 'jpg' | 'jpeg' | 'webp' | 'avif' | 'svg'>;
+    exclude?: Array<string | RegExp>;
+    quality?: number;
+    lossless?: boolean;
+    compressionLevel?: number;
+    concurrency?: number;
+    minSavings?: number;
+    log?: boolean;
+    filter?: (assetName: string, format: string) => boolean;
+    onComplete?: (summary: WebpackStaticImageOptimizeSummary) => void | Promise<void>;
+  }
+
   interface UploadFormField {
     id?: string;
     key: string;
@@ -759,6 +795,18 @@ declare module 'rv-image-optimize/vite-plugin' {
     options?: ViteStaticImageOptimizePluginOptions,
   ): import('vite').Plugin;
   export default rvImageOptimizeVitePlugin;
+}
+
+declare module 'rv-image-optimize/webpack-plugin' {
+  export interface WebpackStaticImageOptimizeItem extends RvImageOptimizeTypes.WebpackStaticImageOptimizeItem {}
+  export interface WebpackStaticImageOptimizeSummary extends RvImageOptimizeTypes.WebpackStaticImageOptimizeSummary {}
+  export interface WebpackStaticImageOptimizePluginOptions extends RvImageOptimizeTypes.WebpackStaticImageOptimizePluginOptions {}
+
+  export const WEBPACK_STATIC_IMAGE_DEFAULT_FORMATS: string[];
+  export function rvImageOptimizeWebpackPlugin(
+    options?: WebpackStaticImageOptimizePluginOptions,
+  ): { apply(compiler: unknown): void };
+  export default rvImageOptimizeWebpackPlugin;
 }
 
 declare module 'rv-image-optimize/LazyImage' {

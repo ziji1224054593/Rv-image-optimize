@@ -1,14 +1,16 @@
 # 静态图片打包无损压缩插件
 
-`rv-image-optimize` 现在提供 `Vite` 构建后插件入口，可在 `build` 产物生成后，对静态图片做无损压缩或无损优化。
+`rv-image-optimize` 现在同时提供 `Vite` 与 `Webpack` 的静态图片构建期压缩插件入口，可在产物生成阶段对静态图片做无损压缩或无损优化。
 
 入口：
 
 - `rv-image-optimize/vite-plugin`
+- `rv-image-optimize/webpack-plugin`
 
 ## 适用场景
 
 - Vite 项目打包后，自动压缩 `dist` 内静态图片
+- Webpack 4 / 5 项目打包时，直接处理 `compilation assets` 中的静态图片
 - 对 `public`、`src/assets` 产出的图片做构建后优化
 - 希望保留原始引用路径，不改图片 URL
 
@@ -17,9 +19,11 @@
 - 默认只处理更适合无损优化的格式：`png`、`webp`、`avif`、`svg`
 - 默认只有在“压缩后文件更小”时，才覆盖原文件
 - 默认不修改文件名和引用路径
-- 默认在 `build` 阶段生效，不影响 `dev`
+- 默认只在构建阶段生效，不影响开发模式
 
 ## 快速开始
+
+### Vite
 
 ```ts
 import { defineConfig } from 'vite'
@@ -32,6 +36,25 @@ export default defineConfig({
     rvImageOptimizeVitePlugin(),
   ],
 })
+```
+
+### Webpack
+
+```js
+import path from 'node:path';
+import { rvImageOptimizeWebpackPlugin } from 'rv-image-optimize/webpack-plugin';
+
+export default {
+  mode: 'production',
+  entry: './src/index.js',
+  output: {
+    path: path.resolve('dist'),
+    filename: 'bundle.js',
+  },
+  plugins: [
+    rvImageOptimizeWebpackPlugin(),
+  ],
+};
 ```
 
 ## 推荐配置
@@ -53,6 +76,17 @@ rvImageOptimizeVitePlugin({
   includeFormats: ['png', 'webp', 'avif', 'svg'],
   lossless: true,
   compressionLevel: 9,
+})
+```
+
+Webpack 插件使用同一套配置项，示例：
+
+```js
+rvImageOptimizeWebpackPlugin({
+  includeFormats: ['png', 'webp', 'avif', 'svg'],
+  lossless: true,
+  compressionLevel: 9,
+  minSavings: 0,
 })
 ```
 
@@ -85,11 +119,14 @@ rvImageOptimizeVitePlugin({
 
 ```text
 [rv-image-optimize/vite-plugin] 扫描 4 个静态图片，优化 3 个，跳过 1 个，失败 0 个，累计节省 12.35 KB
+[rv-image-optimize/webpack-plugin] 扫描 4 个静态图片资源，优化 3 个，跳过 1 个，失败 0 个，累计节省 12.35 KB
 ```
 
 ## 注意事项
 
-- 这是 `Vite build` 阶段插件，不会在 `vite dev` 下生效
-- 插件处理的是构建产物目录里的静态文件，不会改源码目录
+- `vite-plugin` 在 `build` 后扫描输出目录，`webpack-plugin` 则直接处理 `compilation assets`
+- 两个插件都不会改源码目录，只处理构建产物
 - `svg` 当前走的是安全型文本优化，主要移除注释和标签间空白
+- `webpack-plugin` 当前同时兼容 Webpack 4 / 5，但 Webpack 4 仍建议保留 `worker-loader` 配置用于运行时工具函数能力
 - 如果你需要目录级批处理或 CLI 调用，请看 [NODE_CLI_COMPRESS.md](./NODE_CLI_COMPRESS.md)
+- 如果你只关心 Webpack 接入，请看 [WEBPACK_USAGE.md](./WEBPACK_USAGE.md)

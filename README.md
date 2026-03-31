@@ -9,7 +9,7 @@
 ![Node CLI](https://img.shields.io/badge/Node%20CLI-supported-3c873a?logo=nodedotjs&logoColor=fff)
 ![Agent Ready](https://img.shields.io/badge/Agent-Cursor%20%7C%20Claude%20Code%20%7C%20Skills-8b5cf6)
 
-> 最新版本：**v3.0.5**
+> 最新版本：**v3.0.6**
 >
 > `3.x` 只保证 `exports` 中声明的正式入口兼容，不再支持 `src/*`、`lib/*`、`dist/*` 这类内部文件直引。
 
@@ -85,6 +85,8 @@ const optimized = optimizeImageUrl('https://example.com/image.jpg', {
 const blobUrl = await loadImageWithCache(optimized);
 ```
 
+如果你是 `Webpack` 项目，建议继续查看 [WEBPACK_USAGE.md](./WEBPACK_USAGE.md)。
+
 ### Node / CLI
 
 ```javascript
@@ -131,6 +133,31 @@ export default defineConfig({
 
 如果你需要更完整的配置项和注意事项，请查看 [STATIC_IMAGE_BUILD_PLUGIN.md](./STATIC_IMAGE_BUILD_PLUGIN.md)。
 
+### Webpack 静态图片打包压缩
+
+适用于 `Webpack 4 / 5` 项目构建阶段。接入后会直接处理 `compilation assets` 中的图片资源，保持资源名与引用路径不变，只在体积变小时覆盖构建产物。
+
+```js
+import path from 'node:path';
+import { rvImageOptimizeWebpackPlugin } from 'rv-image-optimize/webpack-plugin';
+
+export default {
+  mode: 'production',
+  entry: './src/index.js',
+  output: {
+    path: path.resolve('dist'),
+    filename: 'bundle.js',
+  },
+  plugins: [
+    rvImageOptimizeWebpackPlugin({
+      includeFormats: ['png', 'webp', 'avif', 'svg'],
+    }),
+  ],
+};
+```
+
+如果你需要更完整的配置项和差异说明，请查看 [WEBPACK_USAGE.md](./WEBPACK_USAGE.md)。
+
 ## 正式入口
 
 | 入口 | 说明 |
@@ -144,6 +171,7 @@ export default defineConfig({
 | `rv-image-optimize/lossless` | 浏览器端无损压缩 |
 | `rv-image-optimize/node-compress` | Node 原生压缩 |
 | `rv-image-optimize/vite-plugin` | Vite 构建后静态图片压缩插件 |
+| `rv-image-optimize/webpack-plugin` | Webpack 4 / 5 构建期静态图片压缩插件 |
 | `rv-image-optimize/upload-core` | 无 UI 上传核心 |
 | `rv-image-optimize/upload` | 浏览器端压缩后上传编排 |
 
@@ -151,8 +179,8 @@ export default defineConfig({
 
 - React：优先使用 `rv-image-optimize` 或 `rv-image-optimize/LazyImage`
 - Vue / Vite：运行时统一使用 `rv-image-optimize/utils-only`，构建期静态图可配合 `rv-image-optimize/vite-plugin`
-- Webpack 5：可直接使用 `rv-image-optimize/utils-only`
-- Webpack 4：使用 `rv-image-optimize/utils-only`，并为 `.worker.js` 配置 `worker-loader`
+- Webpack 5：运行时可直接使用 `rv-image-optimize/utils-only`，构建期静态图可配合 `rv-image-optimize/webpack-plugin`
+- Webpack 4：运行时使用 `rv-image-optimize/utils-only` 并为 `.worker.js` 配置 `worker-loader`，构建期静态图可配合 `rv-image-optimize/webpack-plugin`
 - Node / CLI：使用 `rv-image-optimize/node-compress` 或直接调用 `rv-image-optimize` CLI
 - Agent / Cursor / Claude Code / skills：优先通过 `rv-image-optimize` CLI 调用，并配合 `--json` 读取结构化结果
 
@@ -162,6 +190,7 @@ export default defineConfig({
 | --- | --- |
 | Vue 中报 `ReactCurrentDispatcher` | 导入了 React 入口，改用 `rv-image-optimize/utils-only` |
 | Webpack `Module parse failed` | 补 `worker-loader`，或检查是否误用了不适合当前环境的入口 |
+| Webpack 构建期想自动压缩静态图片 | 使用 `rv-image-optimize/webpack-plugin` |
 | Node 里调用 `losslessCompress` 报浏览器 API 错误 | 改用 `rv-image-optimize/node-compress` |
 | 想压缩成功后删除或替换原图 | CLI 使用 `--delete-original` 或 `--replace-original` |
 
@@ -173,10 +202,11 @@ README 只保留首页摘要。以下细节请看对应文档：
 | --- | --- |
 | [REACT_MIGRATION_3X.md](./REACT_MIGRATION_3X.md) | React 项目从 2.x 升级到 3.x 的迁移对照 |
 | [VUE_USAGE.md](./VUE_USAGE.md) | Vue / Vite / Webpack 详细接入说明 |
+| [WEBPACK_USAGE.md](./WEBPACK_USAGE.md) | Webpack 5 / Webpack 4 / React / 原生 JS 接入说明 |
 | [ProgressiveImage.md](./ProgressiveImage.md) | 渐进式加载配置与示例 |
 | [LOSSLESS_COMPRESS.md](./LOSSLESS_COMPRESS.md) | 无损压缩能力与 API |
 | [NODE_CLI_COMPRESS.md](./NODE_CLI_COMPRESS.md) | Node API 与 CLI 压缩入口 |
-| [STATIC_IMAGE_BUILD_PLUGIN.md](./STATIC_IMAGE_BUILD_PLUGIN.md) | Vite 静态图片打包压缩插件说明 |
+| [STATIC_IMAGE_BUILD_PLUGIN.md](./STATIC_IMAGE_BUILD_PLUGIN.md) | Vite / Webpack 静态图片打包压缩插件说明 |
 | [MULTI_LANGUAGE_CLI_USAGE.md](./MULTI_LANGUAGE_CLI_USAGE.md) | Java / Python / PHP 等后端通过 CLI 调用说明 |
 | [AI_TOOLKIT.md](./AI_TOOLKIT.md) | 专门给 AI / Agent 使用的工具摘要与提示词模板 |
 | [AGENTS.md](./AGENTS.md) | 仓库级 Agent 规则，适合支持自动读取仓库指引的 AI |

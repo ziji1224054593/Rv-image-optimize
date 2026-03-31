@@ -1,6 +1,6 @@
 {
   "name": "rv-image-optimize",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "type": "module",
   "description": "图片优化工具和懒加载组件，支持多种CDN和自动格式转换",
   "main": "./dist/image-optimize.cjs",
@@ -17,6 +17,7 @@
     "MULTI_LANGUAGE_CLI_USAGE.md",
     "REACT_MIGRATION_3X.md",
     "STATIC_IMAGE_BUILD_PLUGIN.md",
+    "WEBPACK_USAGE.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
@@ -44,6 +45,10 @@
     "./vite-plugin": {
       "types": "./types/index.d.ts",
       "default": "./lib/vitePlugin.js"
+    },
+    "./webpack-plugin": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/webpackPlugin.js"
     },
     "./upload-core": {
       "types": "./types/index.d.ts",
@@ -82,7 +87,7 @@
     "prepublishOnly": "npm run build"
   },
   "bin": {
-    "rv-image-optimize": "./bin/rv-image-optimize.js"
+    "rv-image-optimize": "bin/rv-image-optimize.js"
   },
   "keywords": [
     "image",
@@ -113,5 +118,9 @@
   },
   "dependencies": {
     "sharp": "^0.34.5"
+  },
+  "directories": {
+    "example": "example",
+    "lib": "lib"
   }
 }

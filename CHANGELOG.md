@@ -2,15 +2,21 @@
 
 本文档记录 `rv-image-optimize` 预览页和核心能力的重要更新。
 
-## v3.0.5
+## v3.0.6
 
 发布时间：2026-03-30
+
+### 新增
+
+- 新增 `rv-image-optimize/webpack-plugin`，支持在 `Webpack 4 / 5` 构建阶段直接处理 `compilation assets` 中的静态图片资源。
+- 新增 `WEBPACK_USAGE.md`，集中说明 Webpack 运行时接入与构建期静态图片压缩插件的使用方式。
 
 ### 文档
 
 - 新增 `AI_TOOLKIT.md`，提供适合直接喂给其他 AI / Agent 的工具摘要、入口映射与提示词模板。
 - 新增 `AGENTS.md`，提供仓库级 Agent 规则，便于支持自动读取仓库指引的 AI 使用本工具。
 - 更新 `README.md` 文档导航，并在预览页文档浏览中加入 `AI_TOOLKIT.md` 与 `AGENTS.md` 入口。
+- 更新 `STATIC_IMAGE_BUILD_PLUGIN.md`，统一覆盖 `Vite / Webpack` 的静态图片打包压缩插件说明。
 
 ## v3.0.4
 
