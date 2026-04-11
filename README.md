@@ -35,6 +35,17 @@
 - 既适合“安全输出到新目录”，也支持在用户明确授权时执行删除原图或替换原图
 - 详细接入方式、推荐提示词和 skill 规则见 [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md)
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=ziji1224054593%2FRv-image-optimize&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ziji1224054593/Rv-image-optimize&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ziji1224054593/Rv-image-optimize&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ziji1224054593/Rv-image-optimize&type=date&legend=top-left" />
+ </picture>
+</a>
+
+
 ## 安装
 
 ```bash
