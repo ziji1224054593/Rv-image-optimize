@@ -45,7 +45,7 @@ export default function PageVisitCounter() {
       const countElement = document.getElementById('busuanzi_value_page_pv');
       const nextCount = countElement?.textContent?.trim();
 
-      if (nextCount) {
+      if (nextCount && /^\d+$/.test(nextCount)) {
         setCount(nextCount);
         setError('');
         return true;
@@ -127,7 +127,7 @@ export default function PageVisitCounter() {
         style={{ display: 'none' }}
         aria-hidden="true"
       >
-        <span id="busuanzi_value_page_pv">0</span>
+        <span id="busuanzi_value_page_pv" />
       </span>
     </div>
   );
