@@ -9,10 +9,11 @@ A high-performance, cross-framework image optimization and lazy-loading solution
 ![Vue](https://img.shields.io/badge/Vue-supported-42b883?logo=vuedotjs&logoColor=fff)
 ![Node CLI](https://img.shields.io/badge/Node%20CLI-supported-3c873a?logo=nodedotjs&logoColor=fff)
 ![Agent Ready](https://img.shields.io/badge/Agent-Cursor%20%7C%20Claude%20Code%20%7C%20Skills-8b5cf6)
+[![ClawHub Skill](https://img.shields.io/badge/ClawHub-Skill-7c3aed)](https://clawhub.ai/ziji1224054593/image-compressor)
 [![GitHub](https://img.shields.io/badge/GitHub-ziji1224054593%2FRv--image--optimize-181717?logo=github)](https://github.com/ziji1224054593/Rv-image-optimize)
 [![npm downloads](https://img.shields.io/npm/dt/rv-image-optimize?color=22c55e&label=downloads)](https://www.npmjs.com/package/rv-image-optimize)
 
-> 最新版本 / Latest version: **v3.0.11**
+> 最新版本 / Latest version: **v3.0.20**
 >
 > `3.x` 只保证 `exports` 中声明的正式入口兼容，不再支持 `src/*`、`lib/*`、`dist/*` 这类内部文件直引。  
 > `3.x` only guarantees compatibility for the public entry points declared in `exports`. Direct imports from internal paths such as `src/*`, `lib/*`, or `dist/*` are no longer supported.
