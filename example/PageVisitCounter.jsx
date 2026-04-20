@@ -108,27 +108,29 @@ export default function PageVisitCounter() {
       border: '1px solid #b7eb8f',
       color: '#333',
       fontSize: '14px',
+      display: 'flex',
+      gap: '2px',
+      alignItems: 'center',
     }}>
-      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-        页面访问统计
+      <div style={{ fontWeight: 'bold' }}>
+        页面访问统计：
       </div>
+      {/* 用户可见的统计文案，只展示这一处。 */}
       <div>
         {error
           ? `统计接口不可用：${error}`
           : !count
-            ? '正在同步访问次数...'
-            : `当前页面累计访问：${count}`}
+            ? ''
+            : ``}
       </div>
-      {/* <div style={{ marginTop: '6px', fontSize: '12px', color: '#666' }}>
-        正式部署环境下，每次打开页面都会自动 +1。
-      </div> */}
-      {/* <span
+      {/* 这是 busuanzi 脚本写入 PV 数字的隐藏挂载点，不能删除。 */}
+      <span
         id="busuanzi_container_page_pv"
         style={{ display: 'none' }}
         aria-hidden="true"
       >
         <span id="busuanzi_value_page_pv" />
-      </span> */}
+      </span>
     </div>
   );
 }
