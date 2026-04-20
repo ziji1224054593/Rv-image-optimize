@@ -2,12 +2,24 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
+const exampleAliases = [
+  { find: 'rv-image-optimize/lossless', replacement: resolve(__dirname, 'lib/losslessCompress.js') },
+  { find: 'rv-image-optimize/cache', replacement: resolve(__dirname, 'lib/imageCache.js') },
+  { find: 'rv-image-optimize/upload-core', replacement: resolve(__dirname, 'lib/uploadCore.js') },
+  { find: 'rv-image-optimize/upload', replacement: resolve(__dirname, 'lib/uploadPipeline.js') },
+  { find: 'rv-image-optimize/styles', replacement: resolve(__dirname, 'src/LazyImage.css') },
+  { find: 'rv-image-optimize', replacement: resolve(__dirname, 'src/index.js') },
+];
+
 export default defineConfig(({ command, mode }) => {
   // 开发模式：应用模式
   if (command === 'serve') {
     return {
       plugins: [react()],
       root: '.',
+      resolve: {
+        alias: exampleAliases,
+      },
       server: {
         port: 3000,
         open: true,
@@ -20,6 +32,9 @@ export default defineConfig(({ command, mode }) => {
     return {
       plugins: [react()],
       root: '.',
+      resolve: {
+        alias: exampleAliases,
+      },
       build: {
         outDir: 'dist-static',
         emptyOutDir: true,
