@@ -122,13 +122,13 @@ export default function PageVisitCounter() {
       {/* <div style={{ marginTop: '6px', fontSize: '12px', color: '#666' }}>
         正式部署环境下，每次打开页面都会自动 +1。
       </div> */}
-      <span
+      {/* <span
         id="busuanzi_container_page_pv"
         style={{ display: 'none' }}
         aria-hidden="true"
       >
         <span id="busuanzi_value_page_pv" />
-      </span>
+      </span> */}
     </div>
   );
 }
