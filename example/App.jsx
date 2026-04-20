@@ -11,6 +11,7 @@ import UploadConfigPanel, {
   DEFAULT_UPLOAD_FORM_FIELDS,
   DEFAULT_UPLOAD_JSON_TEMPLATE,
 } from './UploadConfigPanel.jsx';
+import PageVisitCounter from './PageVisitCounter.jsx';
 import ReleaseAnnouncementPanel from './ReleaseAnnouncementPanel.jsx';
 import {
   losslessCompress,
@@ -2053,6 +2054,7 @@ function App() {
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <h1 style={{ marginBottom: '30px' }}>图片优化工具演示</h1>
+      <PageVisitCounter />
       <ReleaseAnnouncementPanel />
 
       <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '模糊到清晰的渐进式加载示例']}>
