@@ -421,6 +421,8 @@ declare namespace RvImageOptimizeTypes {
     url?: string;
     method?: string;
     authorization?: string;
+    cookie?: string;
+    contentType?: string;
     headers?: Record<string, string | number | boolean | null | undefined>;
     dataMode?: 'formFields' | 'jsonTemplate';
     formFields?: UploadFormField[];
@@ -432,6 +434,8 @@ declare namespace RvImageOptimizeTypes {
     url: string;
     method: string;
     authorization: string;
+    cookie: string;
+    contentType: string;
     headers: Record<string, string>;
     dataMode: 'formFields' | 'jsonTemplate';
     formFields: Array<Required<Pick<UploadFormField, 'id' | 'key'>> & UploadFormField>;

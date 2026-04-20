@@ -36,6 +36,8 @@ const uploadConfig = {
   url: 'https://example.com/admin/upload',
   method: 'POST',
   authorization: 'Bearer your-token',
+  cookie: 'sid=abc123; theme=dark',
+  contentType: '',
   headers: {
     'X-App-Id': 'demo',
   },
@@ -102,6 +104,12 @@ const uploadConfig = {
 - `{{savedSize}}`
 - `{{savedPercentage}}`
 
+说明：
+
+- 当前上传链路只保留 `FormData` 请求体方式
+- `contentType` 默认建议留空，让运行时自动生成 multipart boundary
+- 如果你的接口文档明确要求手动设置 `Content-Type`，也可以显式传入
+
 ## 5. Node / CLI 示例
 
 ```javascript
@@ -127,6 +135,69 @@ const result = await uploadFileWithConfig(file, {
 });
 
 console.log(result.status, result.data);
+```
+
+### Upload CLI
+
+除了直接调用 `upload-core`，现在也可以直接使用 CLI：
+
+```bash
+rv-image-optimize upload ./demo.webp --url https://example.com/admin/upload --json
+```
+
+如果上传字段较多，推荐使用配置文件：
+
+```json
+{
+  "uploadConfig": {
+    "url": "https://example.com/admin/upload",
+    "method": "POST",
+    "authorization": "Bearer your-token",
+    "cookie": "sid=abc123; theme=dark",
+    "contentType": "",
+    "headers": {
+      "X-App-Id": "demo"
+    },
+    "dataMode": "formFields",
+    "fileFieldKey": "file",
+    "formFields": [
+      { "key": "file", "valueType": "file" },
+      { "key": "fileName", "valueType": "fileName" },
+      { "key": "biz", "valueType": "text", "textValue": "review" }
+    ]
+  },
+  "fileMeta": {
+    "sourceFileName": "origin.png",
+    "savedPercentage": 42.5
+  }
+}
+```
+
+```bash
+rv-image-optimize upload ./dist --config ./upload.config.json --json
+```
+
+临时覆盖少量字段时，也可以直接在命令行传：
+
+```bash
+rv-image-optimize upload ./demo.webp \
+  --url https://example.com/admin/upload \
+  --header X-App-Id=demo \
+  --form-field file:file \
+  --form-field biz:text:review \
+  --json
+```
+
+如果你只想给 Agent 预览最终会提交什么字段，而不实际发请求：
+
+```bash
+rv-image-optimize upload ./demo.webp --config ./upload.config.json --preview-only --json
+```
+
+如果你想让 Agent 一条命令完成“压缩后上传”：
+
+```bash
+rv-image-optimize pipeline ./images --format webp --quality 82 --config ./upload.config.json --json
 ```
 
 如果你只想预览最终会提交什么字段：

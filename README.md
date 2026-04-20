@@ -13,7 +13,7 @@ A high-performance, cross-framework image optimization and lazy-loading solution
 [![GitHub](https://img.shields.io/badge/GitHub-ziji1224054593%2FRv--image--optimize-181717?logo=github)](https://github.com/ziji1224054593/Rv-image-optimize)
 [![npm downloads](https://img.shields.io/npm/dt/rv-image-optimize?color=22c55e&label=downloads)](https://www.npmjs.com/package/rv-image-optimize)
 
-> 最新版本 / Latest version: **v3.0.20**
+> 最新版本 / Latest version: **v3.0.22**
 >
 > `3.x` 只保证 `exports` 中声明的正式入口兼容，不再支持 `src/*`、`lib/*`、`dist/*` 这类内部文件直引。  
 > `3.x` only guarantees compatibility for the public entry points declared in `exports`. Direct imports from internal paths such as `src/*`, `lib/*`, or `dist/*` are no longer supported.
@@ -30,13 +30,14 @@ A high-performance, cross-framework image optimization and lazy-loading solution
 - 📤 上传链路可复用：提供 `upload-core` 和 `upload` 两层入口。 / Reusable upload pipeline: ships both `upload-core` and `upload` entry points.
 - 💾 缓存体系完善：内置 IndexedDB + Worker 缓存能力，支持多库多表、自动过期和配额检测。 / Solid caching system: built-in IndexedDB + Worker caching with multi-database, multi-table, expiration, and quota checks.
 - 🧩 `JS / TS` 都可直接接入：从 `3.x` 开始提供官方 `.d.ts`。 / Ready for both `JS / TS`: official `.d.ts` files are included starting from `3.x`.
-- 🤖 Agent 集成友好：可直接接入 `Cursor`、`Claude Code`、skills 型 Agent，推荐通过 CLI + `--json` 调用。 / Agent-friendly integration: works well with `Cursor`, `Claude Code`, and skill-based agents, especially through the CLI with `--json`.
+- 🤖 Agent 集成友好：可直接接入 `Cursor`、`Claude Code`、skills 型 Agent，支持通过 CLI + `--json` 自动化压缩与上传。 / Agent-friendly integration: works well with `Cursor`, `Claude Code`, and skill-based agents, including CLI + `--json` automation for both compression and upload.
 
 ## Agent 集成亮点 / Agent Integration
 
 - 支持 `Cursor`、`Claude Code`、skills 型 Agent 直接接入。 / Supports direct integration with `Cursor`, `Claude Code`, and skill-based agents.
 - 推荐统一通过 `rv-image-optimize` CLI 调用，避免 Agent 临时拼接脚本。 / Using the `rv-image-optimize` CLI is recommended so agents do not have to assemble ad hoc scripts.
 - 支持 `--json` 结构化输出，方便 Agent 稳定解析成功数、失败数、输出目录和压缩结果。 / Supports structured `--json` output so agents can reliably parse success counts, failures, output paths, and compression results.
+- 需要接口上传自动化时，可直接使用 `rv-image-optimize upload <input>` 并通过命令行参数或配置文件描述上传字段。 / For upload automation, use `rv-image-optimize upload <input>` and describe request fields through flags or a config file.
 - 既适合安全输出到新目录，也支持在用户明确授权时删除原图或替换原图。 / Works for safe output into a new directory and can also delete or replace originals when explicitly authorized.
 - 详细接入方式、推荐提示词和 skill 规则见 [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md)。 / See [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md) for detailed integration guidance, prompt suggestions, and skill rules.
 
@@ -148,6 +149,17 @@ console.log(result.outputPath, result.compressedSizeFormatted);
 ```bash
 rv-image-optimize ./images --output-dir ./compressed --format webp --quality 82
 ```
+
+```bash
+rv-image-optimize upload ./compressed/demo.webp --url https://example.com/admin/upload --json
+```
+
+```bash
+rv-image-optimize pipeline ./images --format webp --quality 82 --config ./upload.config.json --json
+```
+
+复杂上传字段建议放进 `--config` 指向的 JSON 文件；如果只是临时增加少量字段，也可以重复传 `--header` 和 `--form-field`。  
+For more complex upload payloads, prefer a JSON file via `--config`; for a few ad hoc fields, repeat `--header` and `--form-field`.
 
 ### Vite 静态图片打包压缩 / Vite Static Image Build Optimization
 

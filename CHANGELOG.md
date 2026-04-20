@@ -2,6 +2,20 @@
 
 本文档记录 `rv-image-optimize` 预览页和核心能力的重要更新。
 
+## v3.0.22
+
+发布时间：2026-04-20
+
+### 改进
+
+- 新增 `rv-image-optimize upload <input>` 上传 CLI，支持通过命令行参数或配置文件稳定描述 `FormData` 请求，并显式配置 `authorization`、`cookie`、`contentType`、表单字段映射与请求头。
+- 新增 `rv-image-optimize pipeline <input>` 一体化子命令，支持先压缩再上传，让 Agent 可以通过单条 CLI 指令完成“压缩 + FormData 接口请求”的自动化流程。
+- 扩展 `upload-core` 的上传配置模型与类型声明，补齐 `cookie`、`contentType` 等接口定义级字段，并保持 `upload` / `pipeline` / `--preview-only` 共用同一套稳定的请求生成逻辑。
+
+### 文档
+
+- 更新 `README.md`、`UPLOAD_PIPELINE.md`、`AGENT_INTEGRATION.md`、`AI_TOOLKIT.md` 与版本公告，补充 upload / pipeline CLI、FormData-only 约束、配置文件位置建议和 Agent 调用示例。
+
 ## v3.0.20
 
 发布时间：2026-04-20

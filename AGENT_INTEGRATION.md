@@ -36,6 +36,18 @@ npx rv-image-optimize ./images --output-dir ./compressed --format webp --quality
 rv-image-optimize ./images --output-dir ./compressed --format webp --quality 82 --json
 ```
 
+### 方式 4：直接执行上传子命令
+
+```bash
+rv-image-optimize upload ./compressed/demo.webp --url https://example.com/admin/upload --json
+```
+
+### 方式 5：一体化压缩后上传
+
+```bash
+rv-image-optimize pipeline ./assets/images --format webp --quality 82 --config ./upload.config.json --json
+```
+
 ## 为什么推荐加 `--json`
 
 对 Agent 来说，`--json` 更适合自动处理结果，因为可以直接解析：
@@ -67,6 +79,30 @@ npx rv-image-optimize ./assets/images --output-dir ./assets/images-compressed --
 
 ```bash
 npx rv-image-optimize ./assets/images --format webp --quality 82 --replace-original --json
+```
+
+### 上传单个文件
+
+```bash
+npx rv-image-optimize upload ./assets/images/demo.webp --url https://example.com/admin/upload --json
+```
+
+### 通过配置文件批量上传
+
+```bash
+npx rv-image-optimize upload ./assets/images-compressed --config ./upload.config.json --json
+```
+
+### 仅预览上传字段
+
+```bash
+npx rv-image-optimize upload ./assets/images/demo.webp --config ./upload.config.json --preview-only --json
+```
+
+### 压缩后直接上传
+
+```bash
+npx rv-image-optimize pipeline ./assets/images --format webp --quality 82 --config ./upload.config.json --json
 ```
 
 ### 推荐提示词
@@ -107,6 +143,10 @@ npx rv-image-optimize ./assets/images --format webp --quality 82 --replace-origi
 - 使用 `--json`
 - 不删除原图
 - 不替换原图
+- 如果要调上传接口，优先用 `rv-image-optimize upload`
+- 如果要一条命令完成压缩后上传，优先用 `rv-image-optimize pipeline`
+- 复杂上传字段优先放到 `--config` JSON 文件
+- 推荐在配置文件里显式写 `authorization` / `cookie` / `contentType`
 
 如果用户明确要求“压缩后删除原图”：
 - 使用 `--delete-original`
@@ -125,6 +165,7 @@ npx rv-image-optimize ./assets/images --format webp --quality 82 --replace-origi
 - failed
 - 输出目录或替换结果
 - 失败文件列表
+- 上传场景下的 HTTP 状态码和失败响应
 ```
 
 ## 推荐命令模板
@@ -147,6 +188,18 @@ rv-image-optimize "{input}" --output-dir "{outputDir}" --format webp --quality 8
 rv-image-optimize "{input}" --format webp --quality 82 --replace-original --json
 ```
 
+### 上传模式
+
+```bash
+rv-image-optimize upload "{input}" --config "{configPath}" --json
+```
+
+### 一体化压缩上传模式
+
+```bash
+rv-image-optimize pipeline "{input}" --format webp --quality 82 --config "{configPath}" --json
+```
+
 ## 默认安全约定
 
 建议你给所有 Agent 统一约束为：
@@ -156,6 +209,8 @@ rv-image-optimize "{input}" --format webp --quality 82 --replace-original --json
 - `--delete-original` 需要用户明确确认
 - `--replace-original` 需要用户明确确认
 - 失败项必须单独汇报
+- 上传请求的复杂字段优先写进配置文件，不要在提示词里拼接超长 JSON
+- 如果接口文档包含 `Authorization`、`Cookie`、`Content-Type`，优先写进配置文件的显式字段，而不是完全依赖通用 `headers`
 
 ## 常见集成场景
 
@@ -181,8 +236,20 @@ Agent 可以从 JSON 中汇总：
 - 输出到了哪里
 - 是否删除/替换了原图
 
+### 场景 4：AI Agent 执行上传接口
+
+```bash
+rv-image-optimize upload ./exports/images-webp --config ./upload.config.json --json
+```
+
+### 场景 5：AI Agent 压缩后直接上传
+
+```bash
+rv-image-optimize pipeline ./exports/images --format webp --quality 82 --config ./upload.config.json --json
+```
+
 ## 注意事项
 
 - `--replace-original` 是高风险动作，建议只在用户明确授权时执行
-- 如果需要上传链路联动，请把 CLI 压缩结果再交给 `rv-image-optimize/upload-core`
+- 如果需要上传链路联动，优先直接使用 `rv-image-optimize upload`；只有在你需要自定义脚本控制时再直接调用 `rv-image-optimize/upload-core`
 - 浏览器环境不要调用这个 CLI 或 `node-compress` 子入口

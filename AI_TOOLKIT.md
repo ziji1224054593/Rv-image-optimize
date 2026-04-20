@@ -22,6 +22,8 @@
 - 浏览器侧无损压缩：`rv-image-optimize/lossless`
 - Node 服务端压缩：`rv-image-optimize/node-compress`
 - CLI / Agent / 多语言后端：`rv-image-optimize`
+- CLI 上传接口自动化：`rv-image-optimize upload`
+- CLI 一体化压缩后上传：`rv-image-optimize pipeline`
 - Vite 静态图片打包压缩：`rv-image-optimize/vite-plugin`
 
 ## 公开入口限制
@@ -43,7 +45,9 @@
 3. 如果是浏览器上传前无损压缩，优先用 `rv-image-optimize/lossless`
 4. 如果是 Node 脚本、后端服务、批量压缩目录，优先用 `rv-image-optimize/node-compress`
 5. 如果是 Agent、终端自动化、多语言后端调用，优先用 CLI：`rv-image-optimize --json`
-6. 如果是 Vite 项目构建期优化静态图片，优先用 `rv-image-optimize/vite-plugin`
+6. 如果是按配置上传文件到接口，优先用 `rv-image-optimize upload --json`
+7. 如果是需要先压缩再上传接口，优先用 `rv-image-optimize pipeline --json`
+8. 如果是 Vite 项目构建期优化静态图片，优先用 `rv-image-optimize/vite-plugin`
 
 ## AI 调用 CLI 的默认策略
 
@@ -69,6 +73,18 @@ npx rv-image-optimize "./images" --output-dir "./images-compressed" --format web
 
 ```bash
 npx rv-image-optimize "./images" --format webp --quality 82 --replace-original --json
+```
+
+如果需要让 Agent 自动上传文件：
+
+```bash
+npx rv-image-optimize upload "./images-compressed" --config "./upload.config.json" --json
+```
+
+如果需要让 Agent 一条命令完成压缩后上传：
+
+```bash
+npx rv-image-optimize pipeline "./images" --format webp --quality 82 --config "./upload.config.json" --json
 ```
 
 ## Vite 插件示例
@@ -122,6 +138,8 @@ export default defineConfig({
 - 浏览器无损压缩用 `rv-image-optimize/lossless`
 - Node 服务端压缩用 `rv-image-optimize/node-compress`
 - 多语言后端或 Agent 调用优先用 CLI：`rv-image-optimize --json`
+- 上传接口自动化优先用：`rv-image-optimize upload --json`
+- 压缩后直传接口优先用：`rv-image-optimize pipeline --json`
 - Vite 项目静态图片打包压缩用 `rv-image-optimize/vite-plugin`
 - 只允许使用公开导出入口，不要使用 `src/*`、`lib/*`、`dist/*`
 
