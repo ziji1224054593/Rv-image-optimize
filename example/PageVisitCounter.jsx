@@ -1,78 +1,103 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-const COUNT_API_BASE = 'https://api.countapi.xyz';
+const BUSUANZI_SCRIPT_ID = 'busuanzi-script';
+const BUSUANZI_SCRIPT_SRC = 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js';
 
-function sanitizeSegment(value, fallback) {
-  const normalized = String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
+function ensureBusuanziScript() {
+  return new Promise((resolve, reject) => {
+    const existingScript = document.getElementById(BUSUANZI_SCRIPT_ID);
 
-  return normalized || fallback;
-}
+    if (existingScript) {
+      if (existingScript.dataset.loaded === 'true') {
+        resolve();
+        return;
+      }
 
-function buildCounterConfig() {
-  if (typeof window === 'undefined') {
-    return {
-      namespace: 'rv-image-optimize-local',
-      key: 'page-home',
+      existingScript.addEventListener('load', resolve, { once: true });
+      existingScript.addEventListener('error', reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = BUSUANZI_SCRIPT_ID;
+    script.src = BUSUANZI_SCRIPT_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      script.dataset.loaded = 'true';
+      resolve();
     };
-  }
-
-  const host = sanitizeSegment(window.location.hostname, 'localhost');
-  const path = sanitizeSegment(window.location.pathname || '/', 'home');
-
-  return {
-    namespace: `rv-image-optimize-${host}`,
-    key: `page-${path}`,
-  };
-}
-
-async function requestCounterValue(namespace, key, shouldIncrement) {
-  const action = shouldIncrement ? 'hit' : 'get';
-  const response = await fetch(`${COUNT_API_BASE}/${action}/${namespace}/${key}`);
-
-  if (!response.ok) {
-    throw new Error(`Counter request failed with status ${response.status}`);
-  }
-
-  return response.json();
+    script.onerror = () => reject(new Error('统计脚本加载失败'));
+    document.body.appendChild(script);
+  });
 }
 
 export default function PageVisitCounter() {
-  const [count, setCount] = useState(null);
+  const [count, setCount] = useState('');
   const [error, setError] = useState('');
-  const counterConfig = useMemo(() => buildCounterConfig(), []);
-  const isProductionBuild = import.meta.env.PROD;
 
   useEffect(() => {
     let cancelled = false;
+    let pollTimer = null;
+    let timeoutTimer = null;
 
-    async function syncCounter() {
+    function updateCountFromDom() {
+      const countElement = document.getElementById('busuanzi_value_page_pv');
+      const nextCount = countElement?.textContent?.trim();
+
+      if (nextCount) {
+        setCount(nextCount);
+        setError('');
+        return true;
+      }
+
+      return false;
+    }
+
+    async function loadCounter() {
+      if (updateCountFromDom()) {
+        return;
+      }
+
       try {
-        const data = await requestCounterValue(
-          counterConfig.namespace,
-          counterConfig.key,
-          isProductionBuild
-        );
+        await ensureBusuanziScript();
 
-        if (!cancelled) {
-          setCount(typeof data?.value === 'number' ? data.value : 0);
-        }
+        pollTimer = window.setInterval(() => {
+          if (cancelled) {
+            return;
+          }
+
+          if (updateCountFromDom()) {
+            window.clearInterval(pollTimer);
+            window.clearTimeout(timeoutTimer);
+          }
+        }, 300);
+
+        timeoutTimer = window.setTimeout(() => {
+          if (!cancelled && !updateCountFromDom()) {
+            setError('统计服务暂时不可用');
+            window.clearInterval(pollTimer);
+          }
+        }, 8000);
       } catch (requestError) {
         if (!cancelled) {
-          setError(requestError.message || '计数服务暂时不可用');
+          setError(requestError.message || '统计服务暂时不可用');
         }
       }
     }
 
-    syncCounter();
+    loadCounter();
 
     return () => {
       cancelled = true;
+      if (pollTimer) {
+        window.clearInterval(pollTimer);
+      }
+      if (timeoutTimer) {
+        window.clearTimeout(timeoutTimer);
+      }
     };
-  }, [counterConfig, isProductionBuild]);
+  }, []);
 
   return (
     <div style={{
@@ -89,16 +114,21 @@ export default function PageVisitCounter() {
       </div>
       <div>
         {error
-          ? `计数接口不可用：${error}`
-          : count === null
+          ? `统计接口不可用：${error}`
+          : !count
             ? '正在同步访问次数...'
             : `当前页面累计访问：${count}`}
       </div>
-      <div style={{ marginTop: '6px', fontSize: '12px', color: '#666' }}>
-        {isProductionBuild
-          ? '正式部署环境下，每次打开页面都会自动 +1。'
-          : '本地开发环境仅查看当前计数，不执行 +1。'}
-      </div>
+      {/* <div style={{ marginTop: '6px', fontSize: '12px', color: '#666' }}>
+        正式部署环境下，每次打开页面都会自动 +1。
+      </div> */}
+      <span
+        id="busuanzi_container_page_pv"
+        style={{ display: 'none' }}
+        aria-hidden="true"
+      >
+        <span id="busuanzi_value_page_pv">0</span>
+      </span>
     </div>
   );
 }
