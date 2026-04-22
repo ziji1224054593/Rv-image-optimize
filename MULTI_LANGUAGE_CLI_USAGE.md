@@ -45,6 +45,7 @@ npx rv-image-optimize "D:/images" --output-dir "D:/images-compressed" --format w
 
 - 优先使用绝对路径
 - 默认输出到新目录，不要默认替换原图
+- 有明确体积预算时优先使用 `--target-size-bytes`
 - 只有用户明确要求时才使用 `--delete-original` 或 `--replace-original`
 - 统一处理非 `0` 退出码
 - 统一处理超时和 JSON 解析失败
@@ -211,6 +212,18 @@ echo "failed: " . ($data['failed'] ?? 0) . PHP_EOL;
 
 ```bash
 npx rv-image-optimize "{input}" --output-dir "{outputDir}" --format webp --quality 82 --json
+```
+
+如果需要按目标体积压缩，推荐改成：
+
+```bash
+npx rv-image-optimize "{input}" --output-dir "{outputDir}" --format webp --target-size-bytes 153600 --json
+```
+
+如果命令里包含上传链路，建议额外加上：
+
+```bash
+--timeout-ms 10000
 ```
 
 ## 何时考虑服务化

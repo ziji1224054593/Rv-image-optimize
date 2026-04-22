@@ -2,6 +2,21 @@
 
 本文档记录 `rv-image-optimize` 预览页和核心能力的重要更新。
 
+## v3.0.30
+
+发布时间：2026-04-22
+
+### 改进
+
+- 新增 CLI 参数 `--target-size-bytes` 与 `--max-bytes`，让压缩命令和 `pipeline` 可以直接按目标体积或体积上限执行压缩，不必只依赖固定 `quality`。
+- 新增 CLI 参数 `--timeout-ms`，让 `upload` / `pipeline` 的单次上传请求具备显式超时保护，降低批量任务长时间卡住的风险。
+- 修正 CLI 帮助路由行为；现在 `rv-image-optimize <input> --help` 会正确显示压缩帮助页，并与 `upload` / `pipeline` 子命令保持一致。
+
+### 文档
+
+- 更新 `README.md`、`AGENT_INTEGRATION.md`、`AGENTS.md`、`AI_TOOLKIT.md`、`NODE_CLI_COMPRESS.md`、`MULTI_LANGUAGE_CLI_USAGE.md` 与 skill 文档，统一补充目标体积压缩、上传超时与 Agent/skills 的推荐调用方式。
+- 更新版本公告来源，使预览页“最新版本公告”同步切换到 `v3.0.30`。
+
 ## v3.0.22
 
 发布时间：2026-04-20

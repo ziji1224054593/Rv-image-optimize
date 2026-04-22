@@ -16,6 +16,33 @@ declare namespace RvImageOptimizeTypes {
     | 'savedSize'
     | 'savedPercentage';
 
+  interface ImageUrlHandlerContext {
+    url: string;
+    urlObject: URL;
+    hostname: string;
+    pathname: string;
+    searchParams: URLSearchParams;
+    isRelative: boolean;
+  }
+
+  interface ImageUrlHandler {
+    name: string;
+    priority?: number;
+    match: (context: ImageUrlHandlerContext, options?: OptimizeOptions) => boolean;
+    process: (context: ImageUrlHandlerContext, options?: OptimizeOptions) => string;
+  }
+
+  interface ImageUrlMatchRule {
+    hostname?: string | RegExp | Array<string | RegExp>;
+    hostnames?: Array<string | RegExp>;
+    pathnamePrefix?: string | string[];
+    pathnamePrefixes?: string[];
+    pathnamePattern?: string | RegExp;
+    query?: Record<string, unknown>;
+    handler?: string | ImageUrlHandler | ((context: ImageUrlHandlerContext, options?: OptimizeOptions) => string);
+    priority?: number;
+  }
+
   interface OptimizeOptions {
     width?: number | null;
     height?: number | null;
@@ -26,6 +53,11 @@ declare namespace RvImageOptimizeTypes {
     blur?: number;
     smooth?: boolean;
     fit?: string;
+    skipSignedUrl?: boolean;
+    signedQueryKeys?: string[];
+    transform?: (url: string, options: OptimizeOptions, context: ImageUrlHandlerContext) => string | void;
+    handlers?: ImageUrlHandler[];
+    matchRules?: ImageUrlMatchRule[];
     [key: string]: unknown;
   }
 
@@ -73,6 +105,12 @@ declare namespace RvImageOptimizeTypes {
     enableCanvasSmoothing?: boolean;
     maxWidth?: number | null;
     maxHeight?: number | null;
+    maxBytes?: number | null;
+    targetSizeBytes?: number | null;
+    candidateFormats?: ImageFormat[];
+    autoSelectFormat?: boolean;
+    minQuality?: number;
+    maxIterations?: number;
   }
 
   interface BrowserCompressionResult {
@@ -104,6 +142,10 @@ declare namespace RvImageOptimizeTypes {
     onStageError?: (error: Error, stageIndex: number, stageUrl: string, stage: ProgressiveStage) => string | null | void;
     onComplete?: (finalUrl: string) => void;
     onError?: (error: Error, stageIndex: number) => void;
+    signal?: AbortSignal | null;
+    dedupe?: boolean;
+    dedupeKey?: string;
+    stageDelay?: number;
     [key: string]: unknown;
   }
 
@@ -116,6 +158,8 @@ declare namespace RvImageOptimizeTypes {
     }>;
     success: boolean;
     error: Error | null;
+    fromCache?: boolean;
+    aborted?: boolean;
   }
 
   interface CacheWriteOptions {
@@ -128,6 +172,16 @@ declare namespace RvImageOptimizeTypes {
     totalSize: number;
     totalSizeMB: number;
     expiredCount: number;
+  }
+
+  interface ImageCacheMetrics {
+    hits: number;
+    misses: number;
+    staleHits: number;
+    writes: number;
+    revalidations: number;
+    inflightHits: number;
+    bytesServedFromCache: number;
   }
 
   interface StorageQuotaResult {
@@ -226,6 +280,9 @@ declare namespace RvImageOptimizeTypes {
     strict?: boolean;
     maxSize?: number | null;
     minSize?: number;
+    maxBytes?: number | null;
+    targetSizeBytes?: number | null;
+    autoSelectFormat?: boolean;
     [key: string]: unknown;
   }
 
@@ -294,6 +351,12 @@ declare namespace RvImageOptimizeTypes {
     sourceFileName?: string | null;
     outputFileName?: string | null;
     originalSize?: number | null;
+    maxBytes?: number | null;
+    targetSizeBytes?: number | null;
+    candidateFormats?: OutputImageFormat[];
+    autoSelectFormat?: boolean;
+    minQuality?: number;
+    maxIterations?: number;
     [key: string]: unknown;
   }
 
@@ -320,6 +383,8 @@ declare namespace RvImageOptimizeTypes {
     isEffective: boolean | null;
     originalDeleted?: boolean;
     replacedOriginal?: boolean;
+    targetSizeBytes?: number | null;
+    metTargetSize?: boolean | null;
   }
 
   interface NodeDirectoryCompressItem {
@@ -348,6 +413,13 @@ declare namespace RvImageOptimizeTypes {
     savedPercentage: number;
     skippedReason: string | null;
     error: string | null;
+    generatedVariants?: Array<{
+      filePath: string;
+      format: string;
+      compressedSize: number;
+      savedSize: number;
+      savedPercentage: number;
+    }>;
   }
 
   interface ViteStaticImageOptimizeSummary {
@@ -356,9 +428,20 @@ declare namespace RvImageOptimizeTypes {
     optimized: number;
     skipped: number;
     failed: number;
+    variantsGenerated?: number;
     savedSize: number;
     savedSizeFormatted: string;
     items: ViteStaticImageOptimizeItem[];
+    manifestPath?: string;
+  }
+
+  interface StaticImageVariantOption {
+    format: OutputImageFormat;
+    suffix?: string;
+    quality?: number;
+    compressionLevel?: number;
+    lossless?: boolean;
+    minSavings?: number;
   }
 
   interface ViteStaticImageOptimizePluginOptions {
@@ -371,6 +454,10 @@ declare namespace RvImageOptimizeTypes {
     minSavings?: number;
     log?: boolean;
     filter?: (filePath: string, format: string) => boolean;
+    variants?: StaticImageVariantOption[];
+    variantMinSavings?: number;
+    manifest?: boolean;
+    manifestFile?: string;
     onComplete?: (summary: ViteStaticImageOptimizeSummary) => void | Promise<void>;
   }
 
@@ -384,6 +471,13 @@ declare namespace RvImageOptimizeTypes {
     savedPercentage: number;
     skippedReason: string | null;
     error: string | null;
+    generatedVariants?: Array<{
+      assetName: string;
+      format: string;
+      compressedSize: number;
+      savedSize: number;
+      savedPercentage: number;
+    }>;
   }
 
   interface WebpackStaticImageOptimizeSummary {
@@ -392,9 +486,11 @@ declare namespace RvImageOptimizeTypes {
     optimized: number;
     skipped: number;
     failed: number;
+    variantsGenerated?: number;
     savedSize: number;
     savedSizeFormatted: string;
     items: WebpackStaticImageOptimizeItem[];
+    manifestAsset?: string;
   }
 
   interface WebpackStaticImageOptimizePluginOptions {
@@ -407,6 +503,10 @@ declare namespace RvImageOptimizeTypes {
     minSavings?: number;
     log?: boolean;
     filter?: (assetName: string, format: string) => boolean;
+    variants?: StaticImageVariantOption[];
+    variantMinSavings?: number;
+    manifest?: boolean;
+    manifestFile?: string;
     onComplete?: (summary: WebpackStaticImageOptimizeSummary) => void | Promise<void>;
   }
 
@@ -428,6 +528,23 @@ declare namespace RvImageOptimizeTypes {
     formFields?: UploadFormField[];
     jsonTemplate?: string | Record<string, unknown> | unknown[];
     fileFieldKey?: string;
+    retry?: number | {
+      count?: number;
+      factor?: number;
+      baseDelayMs?: number;
+      maxDelayMs?: number;
+      retryOnStatuses?: number[];
+      shouldRetry?: (error: Error, context: Record<string, unknown>) => boolean | Promise<boolean>;
+    };
+    fetchImpl?: typeof fetch;
+    beforeRequest?: (request: Record<string, unknown>) => Record<string, unknown> | Promise<Record<string, unknown> | void> | void;
+    afterResponse?: (uploadResult: UploadRequestResult, response: Response, context: Record<string, unknown>) => UploadRequestResult | Record<string, unknown> | Promise<UploadRequestResult | Record<string, unknown> | void> | void;
+    parseResponse?: (response: Response, context: Record<string, unknown>) => unknown;
+    transformResponse?: (data: unknown, response: Response, context: Record<string, unknown>) => unknown;
+    responseAdapter?: (data: unknown, response: Response, context: Record<string, unknown>) => unknown;
+    timeoutMs?: number;
+    timeout?: number;
+    signal?: AbortSignal | null;
   }
 
   interface NormalizedUploadConfig {
@@ -441,6 +558,14 @@ declare namespace RvImageOptimizeTypes {
     formFields: Array<Required<Pick<UploadFormField, 'id' | 'key'>> & UploadFormField>;
     jsonTemplate: string;
     fileFieldKey: string;
+    retry: Record<string, unknown>;
+    fetchImpl: typeof fetch;
+    beforeRequest: UploadConfig['beforeRequest'];
+    afterResponse: UploadConfig['afterResponse'];
+    parseResponse: UploadConfig['parseResponse'];
+    transformResponse: UploadConfig['transformResponse'];
+    timeoutMs: number;
+    signal: AbortSignal | null;
   }
 
   interface UploadContext {
@@ -477,7 +602,11 @@ declare namespace RvImageOptimizeTypes {
     status: number;
     ok: boolean;
     data: T;
-    response: Response;
+    statusText?: string;
+    url?: string;
+    rawData?: unknown;
+    requestEntries?: UploadPayloadPreviewEntry[];
+    attempts?: number;
   }
 
   interface CompressAndUploadProgress {
@@ -490,6 +619,9 @@ declare namespace RvImageOptimizeTypes {
   interface CompressAndUploadRuntimeOptions {
     concurrency?: number;
     onProgress?: (progress: CompressAndUploadProgress) => void;
+    onCompressionComplete?: (payload: Record<string, unknown>) => void;
+    onUploadStart?: (payload: Record<string, unknown>) => void;
+    onUploadComplete?: (payload: Record<string, unknown>) => void;
   }
 
   interface CompressAndUploadFailure {
@@ -504,6 +636,19 @@ declare namespace RvImageOptimizeTypes {
     uploadResult?: UploadRequestResult;
     error?: CompressAndUploadFailure;
   }
+
+  interface CompressAndUploadResultList extends Array<CompressAndUploadResultItem> {
+    summary?: {
+      total: number;
+      success: number;
+      failed: number;
+      failures: Array<{
+        index: number;
+        fileName: string;
+        error: CompressAndUploadFailure;
+      }>;
+    };
+  }
 }
 
 declare module 'rv-image-optimize' {
@@ -511,6 +656,9 @@ declare module 'rv-image-optimize' {
   export type OutputImageFormat = RvImageOptimizeTypes.OutputImageFormat;
   export type CdnType = RvImageOptimizeTypes.CdnType;
   export type UploadValueType = RvImageOptimizeTypes.UploadValueType;
+  export interface ImageUrlHandlerContext extends RvImageOptimizeTypes.ImageUrlHandlerContext {}
+  export interface ImageUrlHandler extends RvImageOptimizeTypes.ImageUrlHandler {}
+  export interface ImageUrlMatchRule extends RvImageOptimizeTypes.ImageUrlMatchRule {}
 
   export interface OptimizeOptions extends RvImageOptimizeTypes.OptimizeOptions {}
   export interface ResponsiveImageOptions extends RvImageOptimizeTypes.ResponsiveImageOptions {}
@@ -523,6 +671,7 @@ declare module 'rv-image-optimize' {
   export interface ProgressiveLoadResult extends RvImageOptimizeTypes.ProgressiveLoadResult {}
   export interface CacheWriteOptions extends RvImageOptimizeTypes.CacheWriteOptions {}
   export interface CacheStats extends RvImageOptimizeTypes.CacheStats {}
+  export interface ImageCacheMetrics extends RvImageOptimizeTypes.ImageCacheMetrics {}
   export interface StorageQuotaResult extends RvImageOptimizeTypes.StorageQuotaResult {}
   export interface DatabaseUsageItem extends RvImageOptimizeTypes.DatabaseUsageItem {}
   export interface LazyImageOptimizationInfo extends RvImageOptimizeTypes.LazyImageOptimizationInfo {}
@@ -539,13 +688,22 @@ declare module 'rv-image-optimize' {
   export interface CompressAndUploadRuntimeOptions extends RvImageOptimizeTypes.CompressAndUploadRuntimeOptions {}
   export interface CompressAndUploadFailure extends RvImageOptimizeTypes.CompressAndUploadFailure {}
   export interface CompressAndUploadResultItem extends RvImageOptimizeTypes.CompressAndUploadResultItem {}
+  export interface CompressAndUploadResultList extends RvImageOptimizeTypes.CompressAndUploadResultList {}
 
   export const DEFAULT_DB_NAME: string;
   export const DEFAULT_STORE_NAME_GENERAL: string;
   export const DEFAULT_CACHE_EXPIRE_HOURS: number;
+  export const DEFAULT_CACHE_KEY_PREFIX: string;
+  export const DEFAULT_CACHE_VERSION: string;
   export const UPLOAD_VALUE_TYPES: UploadValueType[];
   export const UPLOAD_PLACEHOLDERS: Record<UploadValueType, string>;
+  export const DEFAULT_SIGNED_QUERY_KEYS: string[];
 
+  export function createImageUrlHandler(handler: ImageUrlHandler): ImageUrlHandler;
+  export function registerImageUrlHandler(handler: ImageUrlHandler): ImageUrlHandler;
+  export function registerImageUrlHandlers(handlers: ImageUrlHandler[]): ImageUrlHandler[];
+  export function clearCustomImageUrlHandlers(): void;
+  export function listImageUrlHandlers(): ImageUrlHandler[];
   export function detectSupportedFormats(): string[];
   export function getBestFormat(preferredFormat?: string | null): string;
   export function detectImageFormat(url: string): string | null;
@@ -587,6 +745,10 @@ declare module 'rv-image-optimize' {
   export function getStorageQuota(): Promise<StorageQuotaResult>;
   export function checkStorageQuota(requiredSize?: number): Promise<StorageQuotaResult>;
   export function getAllDatabasesUsage(): Promise<DatabaseUsageItem[]>;
+  export function normalizeImageCacheUrl(url: string, options?: Record<string, unknown>): string;
+  export function createImageCacheKey(url: string, options?: Record<string, unknown>): string;
+  export function getImageCacheMetrics(): ImageCacheMetrics;
+  export function resetImageCacheMetrics(): void;
   export function loadImageWithCache(
     url: string,
     dbName?: string,
@@ -619,7 +781,7 @@ declare module 'rv-image-optimize' {
     compressOptions?: RvImageOptimizeTypes.LosslessCompressOptions,
     uploadConfig?: UploadConfig,
     runtimeOptions?: CompressAndUploadRuntimeOptions,
-  ): Promise<CompressAndUploadResultItem[]>;
+  ): Promise<CompressAndUploadResultList>;
 
   export const LazyImage: import('react').ComponentType<LazyImageProps>;
   export const ProgressiveImage: import('react').ComponentType<ProgressiveImageProps>;
@@ -633,6 +795,14 @@ declare module 'rv-image-optimize/utils-only' {
     DEFAULT_DB_NAME,
     DEFAULT_STORE_NAME_GENERAL,
     DEFAULT_CACHE_EXPIRE_HOURS,
+    DEFAULT_CACHE_KEY_PREFIX,
+    DEFAULT_CACHE_VERSION,
+    DEFAULT_SIGNED_QUERY_KEYS,
+    createImageUrlHandler,
+    registerImageUrlHandler,
+    registerImageUrlHandlers,
+    clearCustomImageUrlHandlers,
+    listImageUrlHandlers,
     UPLOAD_VALUE_TYPES,
     UPLOAD_PLACEHOLDERS,
     detectSupportedFormats,
@@ -668,6 +838,10 @@ declare module 'rv-image-optimize/utils-only' {
     getStorageQuota,
     checkStorageQuota,
     getAllDatabasesUsage,
+    normalizeImageCacheUrl,
+    createImageCacheKey,
+    getImageCacheMetrics,
+    resetImageCacheMetrics,
     loadImageWithCache,
     loadImageProgressiveWithCache,
     normalizeUploadConfig,
@@ -686,6 +860,8 @@ declare module 'rv-image-optimize/cache' {
     DEFAULT_DB_NAME,
     DEFAULT_STORE_NAME_GENERAL,
     DEFAULT_CACHE_EXPIRE_HOURS,
+    DEFAULT_CACHE_KEY_PREFIX,
+    DEFAULT_CACHE_VERSION,
     setCache,
     getCache,
     deleteCache,
@@ -698,6 +874,10 @@ declare module 'rv-image-optimize/cache' {
     getStorageQuota,
     checkStorageQuota,
     getAllDatabasesUsage,
+    normalizeImageCacheUrl,
+    createImageCacheKey,
+    getImageCacheMetrics,
+    resetImageCacheMetrics,
     loadImageWithCache,
     loadImageProgressiveWithCache,
   } from 'rv-image-optimize';
@@ -799,6 +979,7 @@ declare module 'rv-image-optimize/node-compress' {
 declare module 'rv-image-optimize/vite-plugin' {
   export interface ViteStaticImageOptimizeItem extends RvImageOptimizeTypes.ViteStaticImageOptimizeItem {}
   export interface ViteStaticImageOptimizeSummary extends RvImageOptimizeTypes.ViteStaticImageOptimizeSummary {}
+  export interface StaticImageVariantOption extends RvImageOptimizeTypes.StaticImageVariantOption {}
   export interface ViteStaticImageOptimizePluginOptions extends RvImageOptimizeTypes.ViteStaticImageOptimizePluginOptions {}
 
   export const VITE_STATIC_IMAGE_DEFAULT_FORMATS: string[];
@@ -811,6 +992,7 @@ declare module 'rv-image-optimize/vite-plugin' {
 declare module 'rv-image-optimize/webpack-plugin' {
   export interface WebpackStaticImageOptimizeItem extends RvImageOptimizeTypes.WebpackStaticImageOptimizeItem {}
   export interface WebpackStaticImageOptimizeSummary extends RvImageOptimizeTypes.WebpackStaticImageOptimizeSummary {}
+  export interface StaticImageVariantOption extends RvImageOptimizeTypes.StaticImageVariantOption {}
   export interface WebpackStaticImageOptimizePluginOptions extends RvImageOptimizeTypes.WebpackStaticImageOptimizePluginOptions {}
 
   export const WEBPACK_STATIC_IMAGE_DEFAULT_FORMATS: string[];

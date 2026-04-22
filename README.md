@@ -13,7 +13,7 @@ A high-performance, cross-framework image optimization and lazy-loading solution
 [![GitHub](https://img.shields.io/badge/GitHub-ziji1224054593%2FRv--image--optimize-181717?logo=github)](https://github.com/ziji1224054593/Rv-image-optimize)
 [![npm downloads](https://img.shields.io/npm/dt/rv-image-optimize?color=22c55e&label=downloads)](https://www.npmjs.com/package/rv-image-optimize)
 
-> 最新版本 / Latest version: **v3.0.22**
+> 最新版本 / Latest version: **v3.0.30**
 >
 > `3.x` 只保证 `exports` 中声明的正式入口兼容，不再支持 `src/*`、`lib/*`、`dist/*` 这类内部文件直引。  
 > `3.x` only guarantees compatibility for the public entry points declared in `exports`. Direct imports from internal paths such as `src/*`, `lib/*`, or `dist/*` are no longer supported.
@@ -37,6 +37,7 @@ A high-performance, cross-framework image optimization and lazy-loading solution
 - 支持 `Cursor`、`Claude Code`、skills 型 Agent 直接接入。 / Supports direct integration with `Cursor`, `Claude Code`, and skill-based agents.
 - 推荐统一通过 `rv-image-optimize` CLI 调用，避免 Agent 临时拼接脚本。 / Using the `rv-image-optimize` CLI is recommended so agents do not have to assemble ad hoc scripts.
 - 支持 `--json` 结构化输出，方便 Agent 稳定解析成功数、失败数、输出目录和压缩结果。 / Supports structured `--json` output so agents can reliably parse success counts, failures, output paths, and compression results.
+- 支持 `--target-size-bytes` / `--max-bytes` 做目标体积压缩，并支持 `--timeout-ms` 为上传链路增加超时保护。 / Supports `--target-size-bytes` / `--max-bytes` for target-size compression and `--timeout-ms` for upload timeout protection.
 - 需要接口上传自动化时，可直接使用 `rv-image-optimize upload <input>` 并通过命令行参数或配置文件描述上传字段。 / For upload automation, use `rv-image-optimize upload <input>` and describe request fields through flags or a config file.
 - 既适合安全输出到新目录，也支持在用户明确授权时删除原图或替换原图。 / Works for safe output into a new directory and can also delete or replace originals when explicitly authorized.
 - 详细接入方式、推荐提示词和 skill 规则见 [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md)。 / See [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md) for detailed integration guidance, prompt suggestions, and skill rules.
@@ -151,11 +152,15 @@ rv-image-optimize ./images --output-dir ./compressed --format webp --quality 82
 ```
 
 ```bash
-rv-image-optimize upload ./compressed/demo.webp --url https://example.com/admin/upload --json
+rv-image-optimize ./images --output-dir ./compressed --format webp --target-size-bytes 153600 --json
 ```
 
 ```bash
-rv-image-optimize pipeline ./images --format webp --quality 82 --config ./upload.config.json --json
+rv-image-optimize upload ./compressed/demo.webp --url https://example.com/admin/upload --timeout-ms 10000 --json
+```
+
+```bash
+rv-image-optimize pipeline ./images --format webp --target-size-bytes 153600 --config ./upload.config.json --timeout-ms 10000 --json
 ```
 
 复杂上传字段建议放进 `--config` 指向的 JSON 文件；如果只是临时增加少量字段，也可以重复传 `--header` 和 `--form-field`。  

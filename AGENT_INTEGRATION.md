@@ -39,14 +39,22 @@ rv-image-optimize ./images --output-dir ./compressed --format webp --quality 82 
 ### 方式 4：直接执行上传子命令
 
 ```bash
-rv-image-optimize upload ./compressed/demo.webp --url https://example.com/admin/upload --json
+rv-image-optimize upload ./compressed/demo.webp --url https://example.com/admin/upload --timeout-ms 10000 --json
 ```
 
 ### 方式 5：一体化压缩后上传
 
 ```bash
-rv-image-optimize pipeline ./assets/images --format webp --quality 82 --config ./upload.config.json --json
+rv-image-optimize pipeline ./assets/images --format webp --target-size-bytes 153600 --config ./upload.config.json --timeout-ms 10000 --json
 ```
+
+## 新增能力参数
+
+Agent / skills 现在可以直接通过 CLI 使用这次新增的核心能力：
+
+- `--target-size-bytes <number>`: 指定目标输出体积，CLI 会自动探测质量 / 格式以尽量逼近目标
+- `--max-bytes <number>`: 指定输出体积上限
+- `--timeout-ms <number>`: 为 `upload` / `pipeline` 的单次上传请求增加超时保护，避免任务长时间卡住
 
 ## 为什么推荐加 `--json`
 
@@ -69,6 +77,12 @@ rv-image-optimize pipeline ./assets/images --format webp --quality 82 --config .
 npx rv-image-optimize ./assets/images --output-dir ./assets/images-compressed --format webp --quality 82 --json
 ```
 
+### 目标体积压缩
+
+```bash
+npx rv-image-optimize ./assets/images --output-dir ./assets/images-compressed --format webp --target-size-bytes 153600 --json
+```
+
 ### 压缩成功后删除原图
 
 ```bash
@@ -84,7 +98,7 @@ npx rv-image-optimize ./assets/images --format webp --quality 82 --replace-origi
 ### 上传单个文件
 
 ```bash
-npx rv-image-optimize upload ./assets/images/demo.webp --url https://example.com/admin/upload --json
+npx rv-image-optimize upload ./assets/images/demo.webp --url https://example.com/admin/upload --timeout-ms 10000 --json
 ```
 
 ### 通过配置文件批量上传
@@ -102,7 +116,7 @@ npx rv-image-optimize upload ./assets/images/demo.webp --config ./upload.config.
 ### 压缩后直接上传
 
 ```bash
-npx rv-image-optimize pipeline ./assets/images --format webp --quality 82 --config ./upload.config.json --json
+npx rv-image-optimize pipeline ./assets/images --format webp --target-size-bytes 153600 --config ./upload.config.json --timeout-ms 10000 --json
 ```
 
 ### 推荐提示词
@@ -110,7 +124,7 @@ npx rv-image-optimize pipeline ./assets/images --format webp --quality 82 --conf
 ```text
 请使用 rv-image-optimize CLI 压缩 ./assets/images 目录中的图片：
 - 输出格式 webp
-- 质量 82
+- 目标体积 150KB 左右
 - 输出到 ./assets/images-compressed
 - 使用 JSON 输出
 - 最后汇总成功数、失败数和输出目录
@@ -131,6 +145,8 @@ npx rv-image-optimize pipeline ./assets/images --format webp --quality 82 --conf
 - 默认用 `rv-image-optimize`
 - 默认加 `--json`
 - 默认不要删除或替换原图
+- 用户给出目标体积时优先用 `--target-size-bytes`
+- 上传任务建议显式补 `--timeout-ms`
 - 只有用户明确要求时才允许 `--delete-original` 或 `--replace-original`
 
 ## 推荐 skill 规则
@@ -143,10 +159,12 @@ npx rv-image-optimize pipeline ./assets/images --format webp --quality 82 --conf
 - 使用 `--json`
 - 不删除原图
 - 不替换原图
+- 目标体积优先使用 `--target-size-bytes`
 - 如果要调上传接口，优先用 `rv-image-optimize upload`
 - 如果要一条命令完成压缩后上传，优先用 `rv-image-optimize pipeline`
 - 复杂上传字段优先放到 `--config` JSON 文件
 - 推荐在配置文件里显式写 `authorization` / `cookie` / `contentType`
+- 上传命令建议显式补 `--timeout-ms`
 
 如果用户明确要求“压缩后删除原图”：
 - 使用 `--delete-original`
@@ -176,6 +194,12 @@ npx rv-image-optimize pipeline ./assets/images --format webp --quality 82 --conf
 rv-image-optimize "{input}" --output-dir "{outputDir}" --format webp --quality 82 --json
 ```
 
+### 目标体积模式
+
+```bash
+rv-image-optimize "{input}" --output-dir "{outputDir}" --format webp --target-size-bytes 153600 --json
+```
+
 ### 删除原图模式
 
 ```bash
@@ -191,13 +215,13 @@ rv-image-optimize "{input}" --format webp --quality 82 --replace-original --json
 ### 上传模式
 
 ```bash
-rv-image-optimize upload "{input}" --config "{configPath}" --json
+rv-image-optimize upload "{input}" --config "{configPath}" --timeout-ms 10000 --json
 ```
 
 ### 一体化压缩上传模式
 
 ```bash
-rv-image-optimize pipeline "{input}" --format webp --quality 82 --config "{configPath}" --json
+rv-image-optimize pipeline "{input}" --format webp --target-size-bytes 153600 --config "{configPath}" --timeout-ms 10000 --json
 ```
 
 ## 默认安全约定
@@ -208,6 +232,7 @@ rv-image-optimize pipeline "{input}" --format webp --quality 82 --config "{confi
 - 默认总是加 `--json`
 - `--delete-original` 需要用户明确确认
 - `--replace-original` 需要用户明确确认
+- 上传命令建议显式加 `--timeout-ms`
 - 失败项必须单独汇报
 - 上传请求的复杂字段优先写进配置文件，不要在提示词里拼接超长 JSON
 - 如果接口文档包含 `Authorization`、`Cookie`、`Content-Type`，优先写进配置文件的显式字段，而不是完全依赖通用 `headers`
@@ -217,7 +242,7 @@ rv-image-optimize pipeline "{input}" --format webp --quality 82 --config "{confi
 ### 场景 1：PR 前自动压缩仓库素材
 
 ```bash
-rv-image-optimize ./public/images --output-dir ./public/images-compressed --format webp --quality 82 --json
+rv-image-optimize ./public/images --output-dir ./public/images-compressed --format webp --target-size-bytes 153600 --json
 ```
 
 ### 场景 2：CMS 导出图片的批处理压缩
@@ -239,13 +264,13 @@ Agent 可以从 JSON 中汇总：
 ### 场景 4：AI Agent 执行上传接口
 
 ```bash
-rv-image-optimize upload ./exports/images-webp --config ./upload.config.json --json
+rv-image-optimize upload ./exports/images-webp --config ./upload.config.json --timeout-ms 10000 --json
 ```
 
 ### 场景 5：AI Agent 压缩后直接上传
 
 ```bash
-rv-image-optimize pipeline ./exports/images --format webp --quality 82 --config ./upload.config.json --json
+rv-image-optimize pipeline ./exports/images --format webp --target-size-bytes 153600 --config ./upload.config.json --timeout-ms 10000 --json
 ```
 
 ## 注意事项

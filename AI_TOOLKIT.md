@@ -57,6 +57,8 @@
 - 默认使用 `--json`
 - 默认不要删除原图
 - 默认不要替换原图
+- 用户给出目标体积时优先使用 `--target-size-bytes`
+- 上传任务建议显式补 `--timeout-ms`
 
 只有用户明确要求时，才允许：
 
@@ -69,6 +71,12 @@
 npx rv-image-optimize "./images" --output-dir "./images-compressed" --format webp --quality 82 --json
 ```
 
+如果用户给的是目标体积：
+
+```bash
+npx rv-image-optimize "./images" --output-dir "./images-compressed" --format webp --target-size-bytes 153600 --json
+```
+
 如果用户明确要求替换原图：
 
 ```bash
@@ -78,13 +86,13 @@ npx rv-image-optimize "./images" --format webp --quality 82 --replace-original -
 如果需要让 Agent 自动上传文件：
 
 ```bash
-npx rv-image-optimize upload "./images-compressed" --config "./upload.config.json" --json
+npx rv-image-optimize upload "./images-compressed" --config "./upload.config.json" --timeout-ms 10000 --json
 ```
 
 如果需要让 Agent 一条命令完成压缩后上传：
 
 ```bash
-npx rv-image-optimize pipeline "./images" --format webp --quality 82 --config "./upload.config.json" --json
+npx rv-image-optimize pipeline "./images" --format webp --target-size-bytes 153600 --config "./upload.config.json" --timeout-ms 10000 --json
 ```
 
 ## Vite 插件示例
@@ -147,5 +155,7 @@ export default defineConfig({
 - 默认输出到新目录
 - 默认使用 `--json`
 - 默认不要删除原图
+- 用户给目标体积时优先用 `--target-size-bytes`
+- 上传时建议加 `--timeout-ms`
 - 只有用户明确要求时才允许删除或替换原图
 ```

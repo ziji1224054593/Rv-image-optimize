@@ -14,6 +14,12 @@ export {
   DEFAULT_DB_NAME,
   DEFAULT_STORE_NAME_GENERAL,
   DEFAULT_CACHE_EXPIRE_HOURS,
+  DEFAULT_CACHE_KEY_PREFIX,
+  DEFAULT_CACHE_VERSION,
+  normalizeImageCacheUrl,
+  createImageCacheKey,
+  getImageCacheMetrics,
+  resetImageCacheMetrics,
   loadImageWithCache,
   loadImageProgressiveWithCache,
 } from '../../lib/imageCache.js';

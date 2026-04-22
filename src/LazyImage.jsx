@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { 
   optimizeImageUrl, 
   compareImageSizes, 
@@ -91,6 +91,7 @@ export default function LazyImage({
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(immediate);
+  const [isVisible, setIsVisible] = useState(immediate);
   const [lockedSrc, setLockedSrc] = useState('');
   const [compressedSrc, setCompressedSrc] = useState(null); // 浏览器端压缩后的图片
   const [isCompressing, setIsCompressing] = useState(false);
@@ -102,6 +103,7 @@ export default function LazyImage({
   const progressiveStageIndexRef = useRef(-1); // 用于同步跟踪当前阶段索引（避免状态更新延迟）
   const progressiveLoadingRef = useRef(false); // 用于跟踪是否正在加载，避免重复启动
   const progressiveStagesRef = useRef(null); // 保存 stages 配置，避免依赖项变化导致重复执行
+  const progressiveAbortControllerRef = useRef(null);
 
   // 获取优化后的URL
   const getOptimizedUrl = (imageSrc) => {
@@ -162,12 +164,9 @@ export default function LazyImage({
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
+          setIsVisible(entry.isIntersecting);
           if (entry.isIntersecting) {
             setShouldLoad(true);
-            // 只 unobserve 当前元素，不要 disconnect 整个 observer
-            if (observerRef.current && entry.target) {
-              observerRef.current.unobserve(entry.target);
-            }
           }
         });
       },
@@ -454,6 +453,17 @@ export default function LazyImage({
   const progressiveSrcRef = useRef(null); // 跟踪当前加载的 src
   
   useEffect(() => {
+    if (!progressive || isVisible || !progressiveAbortControllerRef.current) {
+      return;
+    }
+
+    progressiveAbortControllerRef.current.abort();
+    progressiveAbortControllerRef.current = null;
+    progressiveLoadingRef.current = false;
+    progressiveInitRef.current = false;
+  }, [progressive, isVisible]);
+
+  useEffect(() => {
     // 如果不是渐进式加载，重置标记
     if (!progressive) {
       progressiveInitRef.current = false;
@@ -478,7 +488,7 @@ export default function LazyImage({
     }
 
     // 只有在 shouldLoad 为 true 时才启动加载
-    if (!shouldLoad) {
+    if (!shouldLoad || !isVisible) {
       return;
     }
 
@@ -491,9 +501,13 @@ export default function LazyImage({
     let isCancelled = false;
     const currentSrcRef = src; // 保存当前的 src，避免闭包问题
     const currentStages = progressiveStagesRef.current || progressiveStages; // 使用 ref 中的 stages
+    const abortController = new AbortController();
+    progressiveAbortControllerRef.current = abortController;
     
     progressiveCancelRef.current = () => {
       isCancelled = true;
+      abortController.abort();
+      progressiveAbortControllerRef.current = null;
       progressiveLoadingRef.current = false;
       progressiveInitRef.current = false;
     };
@@ -503,6 +517,7 @@ export default function LazyImage({
       stages: currentStages,
       timeout: progressiveTimeout,
       enableCache: progressiveEnableCache, // 传递缓存开关
+      signal: abortController.signal,
       onStageComplete: (stageIndex, stageUrl, stage) => {
         // 只检查是否已取消或 src 已改变
         if (isCancelled || progressiveSrcRef.current !== currentSrcRef) return;
@@ -534,6 +549,7 @@ export default function LazyImage({
             setIsLoading(false);
             setProgressiveImageUrl(finalUrl);
             progressiveLoadingRef.current = false;
+            progressiveAbortControllerRef.current = null;
             // 渐进式加载完成后，设置最后一个阶段索引
             const finalStageIndex = currentStages.length;
             setProgressiveStageIndex(finalStageIndex);
@@ -552,6 +568,7 @@ export default function LazyImage({
         setIsLoading(false);
         progressiveLoadingRef.current = false;
         progressiveInitRef.current = false;
+        progressiveAbortControllerRef.current = null;
         // 渐进式加载失败，回退到普通加载
         setProgressiveImageUrl('');
         setProgressiveStageIndex(-1);
@@ -565,6 +582,7 @@ export default function LazyImage({
         setIsLoading(false);
         progressiveLoadingRef.current = false;
         progressiveInitRef.current = false;
+        progressiveAbortControllerRef.current = null;
         setProgressiveImageUrl('');
         setProgressiveStageIndex(-1);
         progressiveStageIndexRef.current = -1;
@@ -574,10 +592,12 @@ export default function LazyImage({
     return () => {
       // 只有在组件卸载或 src 改变时才取消
       isCancelled = true;
+      abortController.abort();
+      progressiveAbortControllerRef.current = null;
       progressiveLoadingRef.current = false;
       progressiveInitRef.current = false;
     };
-  }, [progressive, shouldLoad, src, progressiveTimeout, progressiveEnableCache]);
+  }, [progressive, shouldLoad, isVisible, src, progressiveTimeout, progressiveEnableCache]);
   
   // 监听 shouldLoad 变化，先检查缓存，如果CDN不支持优化，尝试浏览器端压缩（普通加载流程）
   useEffect(() => {
@@ -669,6 +689,10 @@ export default function LazyImage({
       progressiveCancelRef.current();
       progressiveCancelRef.current = null;
     }
+    if (progressiveAbortControllerRef.current) {
+      progressiveAbortControllerRef.current.abort();
+      progressiveAbortControllerRef.current = null;
+    }
     
     setIsLoaded(false);
     setHasError(false);
@@ -697,7 +721,9 @@ export default function LazyImage({
     
     if (immediate) {
       setShouldLoad(true);
+      setIsVisible(true);
     } else {
+      setIsVisible(false);
       initObserver();
     }
   }, [src]);
@@ -724,6 +750,10 @@ export default function LazyImage({
       if (progressiveCancelRef.current) {
         progressiveCancelRef.current();
         progressiveCancelRef.current = null;
+      }
+      if (progressiveAbortControllerRef.current) {
+        progressiveAbortControllerRef.current.abort();
+        progressiveAbortControllerRef.current = null;
       }
     };
   }, []);

@@ -35,6 +35,8 @@ const COMPRESS_VALUE_OPTIONS = new Set([
   '--quality',
   '--max-width',
   '--max-height',
+  '--max-bytes',
+  '--target-size-bytes',
   '--suffix',
   '--concurrency',
 ]);
@@ -54,6 +56,7 @@ const UPLOAD_VALUE_OPTIONS = new Set([
   '--json-template-file',
   '--meta',
   '--meta-file',
+  '--timeout-ms',
   '--concurrency',
 ]);
 
@@ -79,13 +82,14 @@ rv-image-optimize Node/CLI 工具
 压缩示例:
   rv-image-optimize ./demo.jpg --format webp --quality 82
   rv-image-optimize ./images --output-dir ./compressed --format avif --quality 70 --json
+  rv-image-optimize ./images --output-dir ./compressed --format webp --target-size-bytes 153600 --json
 
 上传示例:
-  rv-image-optimize upload ./demo.webp --url https://example.com/upload --json
+  rv-image-optimize upload ./demo.webp --url https://example.com/upload --timeout-ms 10000 --json
   rv-image-optimize upload ./dist --config ./upload.config.json --preview-only --json
 
 一体化示例:
-  rv-image-optimize pipeline ./images --format webp --quality 82 --config ./upload.config.json --json
+  rv-image-optimize pipeline ./images --format webp --target-size-bytes 153600 --config ./upload.config.json --timeout-ms 10000 --json
 
 更多帮助:
   rv-image-optimize --help
@@ -111,6 +115,9 @@ rv-image-optimize Node/CLI 压缩工具
   --quality <1-100>       压缩质量，默认 80
   --max-width <number>    最大宽度
   --max-height <number>   最大高度
+  --max-bytes <number>    输出体积上限（字节）
+  --target-size-bytes <number>
+                           目标输出体积（字节），会自动探测质量 / 格式
   --suffix <text>         输出文件后缀，默认 .compressed
   --overwrite             覆盖已存在输出文件
   --delete-original       压缩成功后删除原图
@@ -126,6 +133,7 @@ rv-image-optimize Node/CLI 压缩工具
   rv-image-optimize ./demo.jpg --output ./dist/demo.webp --format webp
   rv-image-optimize ./images --output-dir ./compressed --format avif --quality 70
   rv-image-optimize ./images --format webp --replace-original
+  rv-image-optimize ./images --output-dir ./compressed --format webp --target-size-bytes 153600 --json
 `);
 }
 
@@ -154,6 +162,7 @@ rv-image-optimize Upload CLI
   --json-template-file <file>  JSON 模板文件
   --meta <json>                默认文件元数据 JSON
   --meta-file <file>           默认文件元数据 JSON 文件
+  --timeout-ms <number>        单个上传请求超时（毫秒）
   --no-recursive               目录模式下不递归子目录
   --concurrency <number>       目录上传并发数，默认 3
   --preview-only               仅构建请求预览，不实际发起请求
@@ -176,7 +185,7 @@ form-field 示例:
   --form-field biz:text:review
 
 示例:
-  rv-image-optimize upload ./demo.webp --url https://example.com/upload --json
+  rv-image-optimize upload ./demo.webp --url https://example.com/upload --timeout-ms 10000 --json
   rv-image-optimize upload ./dist --config ./upload.config.json --json
   rv-image-optimize upload ./demo.webp --url https://example.com/upload --preview-only --json
 `);
@@ -201,6 +210,9 @@ rv-image-optimize Pipeline CLI
   --quality <1-100>           压缩质量，默认 80
   --max-width <number>        最大宽度
   --max-height <number>       最大高度
+  --max-bytes <number>        输出体积上限（字节）
+  --target-size-bytes <number>
+                             目标输出体积（字节），会自动探测质量 / 格式
   --suffix <text>             压缩结果文件名后缀，默认 .compressed
   --no-recursive              目录模式下不递归子目录
   --concurrency <number>      目录处理并发数，默认 3
@@ -220,12 +232,13 @@ rv-image-optimize Pipeline CLI
   --json-template-file <file> JSON 模板文件
   --meta <json>               默认文件元数据 JSON
   --meta-file <file>          默认文件元数据 JSON 文件
+  --timeout-ms <number>       单个上传请求超时（毫秒）
   --preview-only              仅预览压缩结果与上传请求，不实际发请求
   --json                      输出 JSON 结果
   --help                      显示帮助
 
 示例:
-  rv-image-optimize pipeline ./demo.png --format webp --quality 82 --url https://example.com/upload --form-field file:file --json
+  rv-image-optimize pipeline ./demo.png --format webp --quality 82 --url https://example.com/upload --form-field file:file --timeout-ms 10000 --json
   rv-image-optimize pipeline ./images --format webp --config ./upload.config.json --preview-only --json
 `);
 }
@@ -447,6 +460,8 @@ function buildSharedCompressOptions(args, defaultConcurrency = 4) {
   const quality = readOption(args, '--quality');
   const maxWidth = readOption(args, '--max-width');
   const maxHeight = readOption(args, '--max-height');
+  const maxBytes = readOption(args, '--max-bytes');
+  const targetSizeBytes = readOption(args, '--target-size-bytes');
   const suffix = readOption(args, '--suffix');
   const concurrency = readOption(args, '--concurrency');
 
@@ -455,6 +470,8 @@ function buildSharedCompressOptions(args, defaultConcurrency = 4) {
     quality: quality ? Number(quality) : 80,
     maxWidth: maxWidth ? Number(maxWidth) : null,
     maxHeight: maxHeight ? Number(maxHeight) : null,
+    maxBytes: maxBytes ? Number(maxBytes) : null,
+    targetSizeBytes: targetSizeBytes ? Number(targetSizeBytes) : null,
     suffix: suffix || '.compressed',
     recursive: !hasFlag(args, '--no-recursive'),
     concurrency: concurrency ? Number(concurrency) : defaultConcurrency,
@@ -561,6 +578,7 @@ async function loadUploadCliConfig(args) {
     contentType: readOption(args, '--content-type'),
     dataMode: readOption(args, '--data-mode'),
     fileFieldKey: readOption(args, '--file-field-key'),
+    timeoutMs: readOption(args, '--timeout-ms'),
   };
 
   const mergedConfig = {
@@ -1073,6 +1091,8 @@ async function runPipelineCommand(args) {
         quality: compressOptions.quality,
         maxWidth: compressOptions.maxWidth,
         maxHeight: compressOptions.maxHeight,
+        maxBytes: compressOptions.maxBytes,
+        targetSizeBytes: compressOptions.targetSizeBytes,
         suffix: compressOptions.suffix,
         recursive: compressOptions.recursive,
         concurrency: compressOptions.concurrency,
@@ -1094,7 +1114,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (hasFlag(args, '--help') && ![UPLOAD_COMMAND, PIPELINE_COMMAND].includes(args[0])) {
+  if (args.length === 1 && args[0] === '--help') {
     printMainHelp();
     return;
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { generateBlurPlaceholderUrl } from '../lib/imageOptimize.js';
 import { loadImageProgressiveWithCache } from '../lib/imageCache.js';
 import './LazyImage.css';
@@ -58,6 +58,7 @@ export default function ProgressiveImage({
   const [isComplete, setIsComplete] = useState(false);
   const containerRef = useRef(null);
   const imageRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   // 初始化：生成模糊占位符
   useEffect(() => {
@@ -78,11 +79,14 @@ export default function ProgressiveImage({
 
     // 开始渐进式加载（带缓存）
     let isCancelled = false;
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     loadImageProgressiveWithCache(src, {
       stages,
       timeout,
       enableCache, // 传递缓存开关
+      signal: abortController.signal,
       onStageComplete: (stageIndex, stageUrl, stage) => {
         if (isCancelled) return;
         setCurrentStageIndex(stageIndex + 1);
@@ -94,6 +98,7 @@ export default function ProgressiveImage({
       },
       onComplete: (finalUrl) => {
         if (isCancelled) return;
+        abortControllerRef.current = null;
         setIsLoading(false);
         setIsComplete(true);
         setCurrentImageUrl(finalUrl);
@@ -104,6 +109,7 @@ export default function ProgressiveImage({
       },
       onError: (error, stageIndex) => {
         if (isCancelled) return;
+        abortControllerRef.current = null;
         setIsLoading(false);
         setHasError(true);
         setErrorMessage(error.message);
@@ -116,8 +122,10 @@ export default function ProgressiveImage({
 
     return () => {
       isCancelled = true;
+      abortController.abort();
+      abortControllerRef.current = null;
     };
-  }, [src, enableCache]);
+  }, [src, enableCache, timeout, stages]);
 
   const containerStyle = {
     width: typeof width === 'number' ? `${width}px` : width,

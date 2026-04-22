@@ -29,6 +29,8 @@
 - 默认使用 `--json`
 - 默认不要删除原图
 - 默认不要替换原图
+- 用户给出目标体积时，优先使用 `--target-size-bytes`
+- 上传或压缩后上传时，优先显式补 `--timeout-ms`
 
 只有用户明确要求时，才允许：
 
@@ -39,6 +41,18 @@
 
 ```bash
 npx rv-image-optimize "./images" --output-dir "./images-compressed" --format webp --quality 82 --json
+```
+
+目标体积压缩推荐命令：
+
+```bash
+npx rv-image-optimize "./images" --output-dir "./images-compressed" --format webp --target-size-bytes 153600 --json
+```
+
+压缩后上传推荐命令：
+
+```bash
+npx rv-image-optimize pipeline "./images" --format webp --target-size-bytes 153600 --config "./upload.config.json" --timeout-ms 10000 --json
 ```
 
 ## Vite 项目规则

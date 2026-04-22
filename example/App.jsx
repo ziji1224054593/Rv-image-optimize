@@ -6,6 +6,7 @@ import {
   formatFileSize,
   loadImagesProgressively,
   loadImageProgressive,
+  registerImageUrlHandler,
 } from 'rv-image-optimize';
 import UploadConfigPanel, {
   DEFAULT_UPLOAD_FORM_FIELDS,
@@ -21,6 +22,7 @@ import {
 import { deleteCache, DEFAULT_DB_NAME, DEFAULT_STORE_NAME_GENERAL } from 'rv-image-optimize/cache';
 import {
   createUploadPayloadPreview,
+  compressAndUploadFiles,
   normalizeUploadConfig,
   uploadCompressedFile,
 } from 'rv-image-optimize/upload';
@@ -56,6 +58,481 @@ function formatResponsePreview(data) {
   } catch (error) {
     return String(data);
   }
+}
+
+function buildDummyImageStageUrl(url, stage) {
+  if (!url || !url.includes('dummyimage.com')) {
+    return url;
+  }
+
+  if (stage.width == null && stage.height == null) {
+    return url;
+  }
+
+  try {
+    const urlObj = new URL(url);
+    const [, size = '800x600', bg = '4a90e2', fg = 'ffffff&text=Demo'] = urlObj.pathname.split('/');
+    const [fallbackWidth = '800', fallbackHeight = '600'] = size.split('x');
+    const width = stage.width ?? fallbackWidth;
+    const height = stage.height ?? fallbackHeight;
+    return `https://dummyimage.com/${width}x${height}/${bg}/${fg}`;
+  } catch (error) {
+    return url;
+  }
+}
+
+function createMockUploadFetch(delayMs, options = {}) {
+  const {
+    status = 200,
+    responseBody = null,
+  } = options;
+
+  return (url, requestOptions = {}) => new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      const body = responseBody || {
+        ok: status >= 200 && status < 300,
+        url: `${url}/mock-result.webp`,
+        requestMethod: requestOptions.method || 'POST',
+      };
+      resolve(new Response(JSON.stringify(body), {
+        status,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }));
+    }, delayMs);
+
+    const { signal } = requestOptions;
+    if (signal) {
+      if (signal.aborted) {
+        window.clearTimeout(timer);
+        reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+        return;
+      }
+
+      signal.addEventListener('abort', () => {
+        window.clearTimeout(timer);
+        reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    }
+  });
+}
+
+async function createMockImageFile(label = 'demo-image') {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
+      <rect width="600" height="400" fill="#4a90e2" />
+      <rect x="40" y="40" width="520" height="320" rx="24" fill="#ffffff" opacity="0.18" />
+      <text x="300" y="190" font-size="40" fill="#ffffff" text-anchor="middle" font-family="Arial, sans-serif">
+        ${label}
+      </text>
+      <text x="300" y="245" font-size="24" fill="#ffffff" text-anchor="middle" font-family="Arial, sans-serif">
+        rv-image-optimize
+      </text>
+    </svg>
+  `.trim();
+
+  return new File([svg], `${label}.svg`, {
+    type: 'image/svg+xml',
+    lastModified: Date.now(),
+  });
+}
+
+function CoreCapabilityUpgradeDemo() {
+  const demoImageUrl = 'https://dummyimage.com/800x600/4a90e2/ffffff&text=Rv+Image+Optimize';
+  const progressiveAbortRef = useRef(null);
+  const [handlerReady, setHandlerReady] = useState(false);
+  const [progressiveRunning, setProgressiveRunning] = useState(false);
+  const [progressiveProgress, setProgressiveProgress] = useState(0);
+  const [progressiveSummary, setProgressiveSummary] = useState(null);
+  const [progressiveLogs, setProgressiveLogs] = useState([]);
+  const [targetKb, setTargetKb] = useState(140);
+  const [targetCompressing, setTargetCompressing] = useState(false);
+  const [targetResult, setTargetResult] = useState(null);
+  const [uploadTimeoutState, setUploadTimeoutState] = useState(null);
+  const [uploadBatchState, setUploadBatchState] = useState(null);
+  const [uploadDemoRunning, setUploadDemoRunning] = useState(false);
+
+  useEffect(() => {
+    registerImageUrlHandler({
+      name: 'example-demo-cdn',
+      priority: 500,
+      match: (context) => context.hostname === 'img.demo-cdn.example',
+      process: (context, options) => {
+        const nextUrl = new URL(context.urlObject.toString());
+        if (options.width) nextUrl.searchParams.set('demo_w', String(options.width));
+        if (options.height) nextUrl.searchParams.set('demo_h', String(options.height));
+        if (options.quality) nextUrl.searchParams.set('demo_q', String(options.quality));
+        if (options.format) nextUrl.searchParams.set('demo_fmt', String(options.format));
+        nextUrl.searchParams.set('engine', 'custom-handler');
+        return nextUrl.toString();
+      },
+    });
+    setHandlerReady(true);
+  }, []);
+
+  const appendProgressiveLog = useCallback((message) => {
+    setProgressiveLogs((prev) => [
+      `${new Date().toLocaleTimeString()} ${message}`,
+      ...prev,
+    ].slice(0, 8));
+  }, []);
+
+  const customHandlerPreview = useMemo(() => {
+    if (!handlerReady) {
+      return '';
+    }
+    return optimizeImageUrl('https://img.demo-cdn.example/assets/cover.jpg?token=secure-demo-token', {
+      width: 720,
+      quality: 68,
+      format: 'webp',
+    });
+  }, [handlerReady]);
+
+  const signedSkipPreview = useMemo(() => (
+    optimizeImageUrl('https://img.demo-cdn.example/assets/private.jpg?signature=demo-signature&token=keep-me', {
+      width: 720,
+      quality: 68,
+      format: 'webp',
+      skipSignedUrl: true,
+    })
+  ), []);
+
+  const ruleEnginePreview = useMemo(() => (
+    optimizeImageUrl('https://static.preview.local/gallery/hero.png', {
+      width: 480,
+      quality: 75,
+      matchRules: [
+        {
+          hostname: 'static.preview.local',
+          pathnamePrefix: '/gallery',
+          handler: (context, options) => {
+            const nextUrl = new URL(context.urlObject.toString());
+            nextUrl.searchParams.set('rule_width', String(options.width || ''));
+            nextUrl.searchParams.set('rule_quality', String(options.quality || ''));
+            nextUrl.searchParams.set('matched_by', 'path-rule');
+            return nextUrl.toString();
+          },
+        },
+      ],
+    })
+  ), []);
+
+  const progressiveImageList = useMemo(() => ([
+    { url: 'https://dummyimage.com/800x600/4a90e2/ffffff&text=Shared+1', priority: 10, index: 0 },
+    { url: 'https://dummyimage.com/800x600/4a90e2/ffffff&text=Shared+1', priority: 9, index: 1 },
+    { url: 'https://dummyimage.com/800x600/e24a4a/ffffff&text=Unique+2', priority: 8, index: 2 },
+    { url: 'https://dummyimage.com/800x600/4ae24a/ffffff&text=Shared+3', priority: 7, index: 3 },
+    { url: 'https://dummyimage.com/800x600/4ae24a/ffffff&text=Shared+3', priority: 6, index: 4 },
+    { url: 'https://dummyimage.com/800x600/e2e24a/ffffff&text=Unique+4', priority: 5, index: 5 },
+  ]), []);
+
+  const runProgressiveDemo = useCallback(async (autoCancel = false) => {
+    if (progressiveAbortRef.current) {
+      progressiveAbortRef.current.abort();
+      progressiveAbortRef.current = null;
+    }
+
+    const controller = new AbortController();
+    progressiveAbortRef.current = controller;
+    setProgressiveRunning(true);
+    setProgressiveProgress(0);
+    setProgressiveSummary(null);
+    setProgressiveLogs([]);
+
+    if (autoCancel) {
+      window.setTimeout(() => {
+        controller.abort();
+      }, 1200);
+    }
+
+    const results = await loadImagesProgressively(progressiveImageList, {
+      concurrency: 3,
+      timeout: 8000,
+      dedupe: true,
+      signal: controller.signal,
+      stages: [
+        { width: 40, height: 30, quality: 30 },
+        { width: 160, height: 120, quality: 60 },
+        { width: null, height: null, quality: 80 },
+      ],
+      urlTransformer: (url, stage) => buildDummyImageStageUrl(url, stage),
+      onProgress: (current, total) => {
+        setProgressiveProgress(Math.round((current / total) * 100));
+      },
+      onItemStageComplete: (stageResult) => {
+        appendProgressiveLog(`图片 #${stageResult.index + 1} 完成阶段 ${stageResult.currentStage}/${stageResult.totalStages}`);
+      },
+      onItemComplete: (result) => {
+        appendProgressiveLog(
+          `图片 #${result.index + 1} ${result.aborted ? '已取消' : result.success ? '成功' : '失败'}`
+        );
+      },
+    });
+
+    const aborted = results.filter((item) => item?.aborted).length;
+    const success = results.filter((item) => item?.success).length;
+    const failed = results.filter((item) => item && !item.success && !item.aborted).length;
+
+    setProgressiveSummary({
+      total: results.length,
+      success,
+      failed,
+      aborted,
+      duplicateCount: progressiveImageList.length - new Set(progressiveImageList.map((item) => item.url)).size,
+      dedupeEnabled: true,
+    });
+    setProgressiveRunning(false);
+    progressiveAbortRef.current = null;
+  }, [appendProgressiveLog, progressiveImageList]);
+
+  const handleCancelProgressive = useCallback(() => {
+    progressiveAbortRef.current?.abort();
+    appendProgressiveLog('手动取消了当前批量任务');
+  }, [appendProgressiveLog]);
+
+  const handleTargetCompression = useCallback(async () => {
+    setTargetCompressing(true);
+    try {
+      const result = await losslessCompress(demoImageUrl, {
+        targetSizeBytes: targetKb * 1024,
+        maxWidth: 1280,
+        quality: 0.92,
+        autoSelectFormat: true,
+      });
+      setTargetResult(result);
+    } catch (error) {
+      alert(`目标体积压缩失败: ${error.message}`);
+    } finally {
+      setTargetCompressing(false);
+    }
+  }, [demoImageUrl, targetKb]);
+
+  const handleUploadTimeoutDemo = useCallback(async () => {
+    setUploadDemoRunning(true);
+    setUploadTimeoutState(null);
+
+    try {
+      const file = await createMockImageFile('timeout-demo');
+      await uploadCompressedFile(file, { sourceFileName: file.name }, {
+        url: 'https://mock-upload.example/api/files',
+        timeoutMs: 1000,
+        retry: 0,
+        fetchImpl: createMockUploadFetch(2500),
+      });
+
+      setUploadTimeoutState({
+        success: true,
+        message: '上传竟然成功了，这通常不应该发生',
+      });
+    } catch (error) {
+      setUploadTimeoutState({
+        success: false,
+        message: error.message,
+        timedOut: Boolean(error?.isTimeout) || String(error?.message || '').includes('超时'),
+      });
+    } finally {
+      setUploadDemoRunning(false);
+    }
+  }, []);
+
+  const handleUploadCallbackIsolationDemo = useCallback(async () => {
+    setUploadDemoRunning(true);
+    setUploadBatchState(null);
+
+    try {
+      const fileA = await createMockImageFile('batch-a');
+      const fileB = await createMockImageFile('batch-b');
+      let thrownCallbackCount = 0;
+
+      const results = await compressAndUploadFiles(
+        [fileA, fileB],
+        {
+          format: 'png',
+          maxWidth: 800,
+        },
+        {
+          url: 'https://mock-upload.example/api/files',
+          timeoutMs: 2000,
+          retry: 0,
+          fetchImpl: createMockUploadFetch(300),
+        },
+        {
+          onProgress: () => {
+            thrownCallbackCount += 1;
+            throw new Error('演示：onProgress 主动抛错');
+          },
+          onUploadComplete: ({ index }) => {
+            if (index === 0) {
+              thrownCallbackCount += 1;
+              throw new Error('演示：onUploadComplete 主动抛错');
+            }
+          },
+        }
+      );
+
+      setUploadBatchState({
+        successCount: results.summary?.success || 0,
+        failedCount: results.summary?.failed || 0,
+        callbackErrorsTriggered: thrownCallbackCount,
+      });
+    } catch (error) {
+      setUploadBatchState({
+        successCount: 0,
+        failedCount: 0,
+        callbackErrorsTriggered: 0,
+        error: error.message,
+      });
+    } finally {
+      setUploadDemoRunning(false);
+    }
+  }, []);
+
+  return (
+    <div style={{
+      marginBottom: '40px',
+      padding: '20px',
+      border: '1px solid #ddd',
+      borderRadius: '8px',
+      backgroundColor: '#f9f9f9',
+    }}>
+      <h2>核心升级功能预览</h2>
+      <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+        这一页把本次新增的核心能力直接做成可交互示例：URL 规则引擎、渐进式取消与去重、目标体积压缩，以及上传超时/回调隔离。
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
+        <div style={{ backgroundColor: 'white', border: '1px solid #e5e5e5', borderRadius: '8px', padding: '16px' }}>
+          <h3 style={{ marginTop: 0 }}>1. URL 优化引擎</h3>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>展示自定义 handler、路径规则和签名 URL 跳过能力。</div>
+          <div style={{ fontSize: '12px', lineHeight: 1.6 }}>
+            <div><strong>自定义 handler：</strong></div>
+            <code style={{ display: 'block', wordBreak: 'break-all', backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+              {customHandlerPreview || '初始化中...'}
+            </code>
+            <div style={{ marginTop: '10px' }}><strong>签名 URL 跳过：</strong></div>
+            <code style={{ display: 'block', wordBreak: 'break-all', backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+              {signedSkipPreview}
+            </code>
+            <div style={{ marginTop: '10px' }}><strong>按路径规则匹配：</strong></div>
+            <code style={{ display: 'block', wordBreak: 'break-all', backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+              {ruleEnginePreview}
+            </code>
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: 'white', border: '1px solid #e5e5e5', borderRadius: '8px', padding: '16px' }}>
+          <h3 style={{ marginTop: 0 }}>2. Progressive 取消与去重</h3>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+            6 条任务里包含 2 组重复 URL，用于演示 `dedupe: true` 和 `AbortSignal`。
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+            <button onClick={() => runProgressiveDemo(false)} disabled={progressiveRunning} style={{ padding: '8px 12px' }}>
+              {progressiveRunning ? '运行中...' : '开始批量加载'}
+            </button>
+            <button onClick={() => runProgressiveDemo(true)} disabled={progressiveRunning} style={{ padding: '8px 12px' }}>
+              {progressiveRunning ? '运行中...' : '开始并自动取消'}
+            </button>
+            <button onClick={handleCancelProgressive} disabled={!progressiveRunning} style={{ padding: '8px 12px' }}>
+              立即取消
+            </button>
+          </div>
+          <div style={{ fontSize: '13px', marginBottom: '10px' }}>当前进度：{progressiveProgress}%</div>
+          {progressiveSummary && (
+            <div style={{ fontSize: '12px', backgroundColor: '#f5f5f5', padding: '10px', borderRadius: '4px', marginBottom: '10px' }}>
+              <div>总数：{progressiveSummary.total}</div>
+              <div>成功：{progressiveSummary.success}</div>
+              <div>失败：{progressiveSummary.failed}</div>
+              <div>已取消：{progressiveSummary.aborted}</div>
+              <div>重复 URL 数：{progressiveSummary.duplicateCount}</div>
+            </div>
+          )}
+          <div style={{ fontSize: '12px', maxHeight: '160px', overflowY: 'auto', backgroundColor: '#fafafa', border: '1px solid #eee', padding: '8px', borderRadius: '4px' }}>
+            {progressiveLogs.length === 0 ? '等待开始...' : progressiveLogs.map((log, index) => (
+              <div key={`${log}-${index}`} style={{ marginBottom: '6px' }}>{log}</div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: 'white', border: '1px solid #e5e5e5', borderRadius: '8px', padding: '16px' }}>
+          <h3 style={{ marginTop: 0 }}>3. 目标体积压缩</h3>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+            直接指定目标大小，不需要手动猜 `quality`。这里会自动尝试质量和输出格式。
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: '13px' }}>
+              目标体积（KB）：
+              <input
+                type="number"
+                min="20"
+                max="500"
+                value={targetKb}
+                onChange={(event) => setTargetKb(Math.max(20, Number(event.target.value) || 20))}
+                style={{ marginLeft: '8px', width: '90px' }}
+              />
+            </label>
+            <button onClick={handleTargetCompression} disabled={targetCompressing} style={{ padding: '8px 12px' }}>
+              {targetCompressing ? '压缩中...' : '生成目标体积结果'}
+            </button>
+          </div>
+          {targetResult && (
+            <>
+              <img
+                src={targetResult.dataURL}
+                alt="目标体积压缩结果"
+                style={{ width: '100%', maxHeight: '220px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #eee' }}
+              />
+              <div style={{ fontSize: '12px', backgroundColor: '#f5f5f5', padding: '10px', borderRadius: '4px', marginTop: '10px', lineHeight: 1.6 }}>
+                <div>输出格式：{targetResult.compressedFormat?.toUpperCase() || '未知'}</div>
+                <div>目标体积：{targetResult.targetSizeBytes ? formatFileSize(targetResult.targetSizeBytes) : '未设置'}</div>
+                <div>实际体积：{targetResult.compressedSizeFormatted}</div>
+                <div>是否达标：{targetResult.metTargetSize ? '是' : '否，返回了当前最优结果'}</div>
+                <div>压缩尺寸：{targetResult.compressedWidth} × {targetResult.compressedHeight}px</div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ backgroundColor: 'white', border: '1px solid #e5e5e5', borderRadius: '8px', padding: '16px' }}>
+          <h3 style={{ marginTop: 0 }}>4. 上传超时与回调隔离</h3>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+            这里不依赖真实后端，使用 mock `fetchImpl` 演示超时和“回调抛错但批量继续”的行为。
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+            <button onClick={handleUploadTimeoutDemo} disabled={uploadDemoRunning} style={{ padding: '8px 12px' }}>
+              模拟上传超时
+            </button>
+            <button onClick={handleUploadCallbackIsolationDemo} disabled={uploadDemoRunning} style={{ padding: '8px 12px' }}>
+              模拟批量回调抛错
+            </button>
+          </div>
+          {uploadTimeoutState && (
+            <div style={{ fontSize: '12px', backgroundColor: uploadTimeoutState.success ? '#f6ffed' : '#fff2f0', padding: '10px', borderRadius: '4px', marginBottom: '10px' }}>
+              <div><strong>超时演示：</strong>{uploadTimeoutState.success ? '成功' : '已失败'}</div>
+              <div>结果：{uploadTimeoutState.message}</div>
+              {!uploadTimeoutState.success && <div>是否超时触发：{uploadTimeoutState.timedOut ? '是' : '否'}</div>}
+            </div>
+          )}
+          {uploadBatchState && (
+            <div style={{ fontSize: '12px', backgroundColor: '#f5f5f5', padding: '10px', borderRadius: '4px' }}>
+              {uploadBatchState.error ? (
+                <div>批量演示失败：{uploadBatchState.error}</div>
+              ) : (
+                <>
+                  <div>批量成功：{uploadBatchState.successCount}</div>
+                  <div>批量失败：{uploadBatchState.failedCount}</div>
+                  <div>演示中主动抛出的回调异常次数：{uploadBatchState.callbackErrorsTriggered}</div>
+                  <div style={{ marginTop: '6px', color: '#666' }}>
+                    即使这些回调异常发生，批量流程依然会继续跑完。
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // 无损压缩对比组件
@@ -2057,7 +2534,7 @@ function App() {
       <PageVisitCounter />
       <ReleaseAnnouncementPanel />
 
-      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '模糊到清晰的渐进式加载示例']}>
+      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '模糊到清晰的渐进式加载示例', '核心升级功能预览']}>
       {/* <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}> */}
         {/* 第一页：LazyImage 组件示例 */}
         <div>
@@ -2114,7 +2591,7 @@ function App() {
           </div>
         </div>
 
-        {/* 第二页：图片优化工具演示 */}
+        {/* 第三页：图片优化工具演示 */}
         <div>
           <LosslessCompressDemo />
         </div>
@@ -2127,6 +2604,10 @@ function App() {
         {/* 第四页 模糊到清晰的渐进式加载示例 */}
         <div>
           <BlurToClearDemo />
+        </div>
+
+        <div>
+          <CoreCapabilityUpgradeDemo />
         </div>
       </Tabs>
     </div>

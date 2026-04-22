@@ -75,6 +75,8 @@ console.log(result.compressedFormat, result.compressedSize);
 - `maxWidth`: 最大宽度
 - `maxHeight`: 最大高度
 - `compressionLevel`: 编码强度，默认 `6`
+- `maxBytes`: 输出体积上限（字节）
+- `targetSizeBytes`: 目标输出体积（字节）
 - `outputPath`: 单文件精确输出路径
 - `outputDir`: 输出目录
 - `suffix`: 输出文件后缀，默认 `.compressed`
@@ -152,6 +154,12 @@ rv-image-optimize ./images --format webp --replace-original
 rv-image-optimize ./images --output-dir ./compressed --json
 ```
 
+### 目标体积压缩
+
+```bash
+rv-image-optimize ./images --output-dir ./compressed --format webp --target-size-bytes 153600 --json
+```
+
 ## CLI 参数
 
 - `--output <file>`: 单文件模式的精确输出文件
@@ -160,6 +168,8 @@ rv-image-optimize ./images --output-dir ./compressed --json
 - `--quality <1-100>`: 压缩质量
 - `--max-width <number>`: 最大宽度
 - `--max-height <number>`: 最大高度
+- `--max-bytes <number>`: 输出体积上限（字节）
+- `--target-size-bytes <number>`: 目标输出体积（字节）
 - `--suffix <text>`: 输出后缀
 - `--overwrite`: 允许覆盖
 - `--delete-original`: 压缩成功后删除原图

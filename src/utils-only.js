@@ -4,6 +4,12 @@
 // 导出图片优化工具函数
 export {
   optimizeImageUrl,
+  createImageUrlHandler,
+  registerImageUrlHandler,
+  registerImageUrlHandlers,
+  clearCustomImageUrlHandlers,
+  listImageUrlHandlers,
+  DEFAULT_SIGNED_QUERY_KEYS,
   detectSupportedFormats,
   getBestFormat,
   detectImageFormat,
@@ -44,7 +50,13 @@ export {
   DEFAULT_DB_NAME,
   DEFAULT_STORE_NAME_GENERAL,
   DEFAULT_CACHE_EXPIRE_HOURS,
+  DEFAULT_CACHE_KEY_PREFIX,
+  DEFAULT_CACHE_VERSION,
   // 导出图片加载辅助函数（使用通用缓存 API）
+  normalizeImageCacheUrl,
+  createImageCacheKey,
+  getImageCacheMetrics,
+  resetImageCacheMetrics,
   loadImageWithCache,
   loadImageProgressiveWithCache,
 } from '../lib/imageCache.js';

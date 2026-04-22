@@ -1,7 +1,7 @@
 ---
 name: image-compressor
 description: 基于 `rv-image-optimize` 的图片压缩、上传与一体化压缩后上传 skill，支持 JPEG/PNG/WebP/AVIF、批量目录处理、FormData 接口配置与 JSON 结果汇总。Use when the user asks to compress images, upload optimized files, convert to WebP or AVIF, batch-process image folders, resize images, or run image optimization/upload from an agent workflow.
-version: 3.0.22
+version: 3.0.30
 metadata:
   openclaw:
     emoji: "\U0001F5BC\uFE0F"
