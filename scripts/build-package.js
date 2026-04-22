@@ -11,10 +11,10 @@ const browserEsEntries = {
   'image-optimize-utils': resolve(projectRoot, 'src/utils-only.js'),
   'lazy-image': resolve(projectRoot, 'src/LazyImage.jsx'),
   'progressive-image': resolve(projectRoot, 'src/ProgressiveImage.jsx'),
-  'lossless': resolve(projectRoot, 'lib/losslessCompress.js'),
-  'upload-core': resolve(projectRoot, 'lib/uploadCore.js'),
-  'upload': resolve(projectRoot, 'lib/uploadPipeline.js'),
-  'cache': resolve(projectRoot, 'lib/imageCache.js'),
+  'lossless': resolve(projectRoot, 'src/entries/lossless.js'),
+  'upload-core': resolve(projectRoot, 'src/entries/upload-core.js'),
+  'upload': resolve(projectRoot, 'src/entries/upload.js'),
+  'cache': resolve(projectRoot, 'src/entries/cache.js'),
 };
 
 const browserCjsEntries = {

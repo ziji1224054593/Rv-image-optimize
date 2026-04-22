@@ -3,10 +3,14 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
 const exampleAliases = [
-  { find: 'rv-image-optimize/lossless', replacement: resolve(__dirname, 'lib/losslessCompress.js') },
-  { find: 'rv-image-optimize/cache', replacement: resolve(__dirname, 'lib/imageCache.js') },
-  { find: 'rv-image-optimize/upload-core', replacement: resolve(__dirname, 'lib/uploadCore.js') },
-  { find: 'rv-image-optimize/upload', replacement: resolve(__dirname, 'lib/uploadPipeline.js') },
+  // Keep the preview app on the public package surface instead of aliasing internal lib/* files.
+  { find: 'rv-image-optimize/lossless', replacement: resolve(__dirname, 'src/entries/lossless.js') },
+  { find: 'rv-image-optimize/cache', replacement: resolve(__dirname, 'src/entries/cache.js') },
+  { find: 'rv-image-optimize/upload-core', replacement: resolve(__dirname, 'src/entries/upload-core.js') },
+  { find: 'rv-image-optimize/upload', replacement: resolve(__dirname, 'src/entries/upload.js') },
+  { find: 'rv-image-optimize/utils-only', replacement: resolve(__dirname, 'src/utils-only.js') },
+  { find: 'rv-image-optimize/LazyImage', replacement: resolve(__dirname, 'src/LazyImage.jsx') },
+  { find: 'rv-image-optimize/ProgressiveImage', replacement: resolve(__dirname, 'src/ProgressiveImage.jsx') },
   { find: 'rv-image-optimize/styles', replacement: resolve(__dirname, 'src/LazyImage.css') },
   { find: 'rv-image-optimize', replacement: resolve(__dirname, 'src/index.js') },
 ];

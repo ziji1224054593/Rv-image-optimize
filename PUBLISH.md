@@ -5,6 +5,7 @@
 **不需要发布整个项目！** npm 包只会发布必要的文件，通过 `package.json` 中的 `files` 字段和 `.npmignore` 文件控制。
 
 ### 会被发布的文件：
+- ✅ `bin/` - CLI 入口文件（`rv-image-optimize` 命令）
 - ✅ `dist/` - 构建后的文件（用户实际使用的文件）
 - ✅ `types/` - 类型声明文件
 - ✅ `README.md` - npm 首页说明文档
@@ -72,7 +73,8 @@ npm pack --dry-run
 检查输出，确保只包含必要的文件。
 
 补充说明：
-- 当前本地开发示例已统一改为通过 `rv-image-optimize` 的正式包入口联调，建议在发布前先执行一次 `npm run dev` 做手工验证，确认 demo 不再依赖 `src/` 或 `lib/` 直引。
+- 当前本地开发示例虽然会通过 `vite.config.js` 做本地 alias，但 alias 已统一收敛到 `src/entries/*` / `src/index.js` / `src/utils-only.js` 这些公开入口包装层，不再直接指向 `lib/*` 内部实现。
+- 发布前建议先执行一次 `npm run dev` 做手工验证，重点确认示例侧使用的仍然是 `rv-image-optimize` 暴露的正式入口语义，而不是新的内部源码路径。
 
 ## 发布步骤
 

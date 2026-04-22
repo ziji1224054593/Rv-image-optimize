@@ -3,7 +3,7 @@
  * 展示如何使用 loadImagesProgressively 函数实现高并发、错误隔离的图片加载
  */
 
-import { loadImagesProgressively, loadImagesBatch, optimizeImageUrl } from '../imageOptimize.js';
+import { loadImagesProgressively, loadImagesBatch, optimizeImageUrl } from 'rv-image-optimize/utils-only';
 
 // ========== 示例 1: 基础用法 - 简单URL数组 ==========
 export async function example1_BasicUsage() {
@@ -240,7 +240,7 @@ export async function example8_PoorNetwork() {
 
 /*
 // React 组件示例
-import { loadImagesProgressively } from './imageOptimize.js';
+import { loadImagesProgressively } from 'rv-image-optimize/utils-only';
 
 function ImageGallery({ imageUrls }) {
   const [images, setImages] = useState([]);

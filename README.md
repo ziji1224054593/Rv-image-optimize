@@ -235,6 +235,9 @@ For more complete configuration options and differences, see [WEBPACK_USAGE.md](
 | `rv-image-optimize/upload-core` | 无 UI 上传核心 | Headless upload core |
 | `rv-image-optimize/upload` | 浏览器端压缩后上传编排 | Browser-side compress-then-upload orchestration |
 
+本仓库内的本地预览示例也按上表这组正式入口联调；即使在开发环境使用 alias，alias 也只会映射到对应的公开入口包装层，而不会直接把 `lib/*` 当作对外契约。  
+The local preview app in this repository is also validated against the public entry points above. Even when aliases are used in development, they only map to public-entry wrappers instead of treating `lib/*` as part of the external contract.
+
 ## 框架接入建议 / Integration Recommendations
 
 - React：优先使用 `rv-image-optimize` 或 `rv-image-optimize/LazyImage`。 / For React, prefer `rv-image-optimize` or `rv-image-optimize/LazyImage`.

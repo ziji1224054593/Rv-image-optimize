@@ -16,8 +16,8 @@ import {
   checkLosslessCompressionSuitability,
   downloadCompressedImage,
   getGPUSupportInfo,
-} from '../lib/losslessCompress.js';
-import { formatFileSize } from '../lib/imageOptimize.js';
+} from 'rv-image-optimize/lossless';
+import { formatFileSize } from 'rv-image-optimize/utils-only';
 
 // ========== 示例1: 基本无损压缩 ==========
 async function example1() {
