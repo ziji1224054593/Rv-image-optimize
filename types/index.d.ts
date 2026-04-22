@@ -14,7 +14,15 @@ declare namespace RvImageOptimizeTypes {
     | 'compressedFileType'
     | 'compressedFileSize'
     | 'savedSize'
-    | 'savedPercentage';
+    | 'savedPercentage'
+    | 'chunkIndex'
+    | 'chunkNumber'
+    | 'totalChunks'
+    | 'chunkSize'
+    | 'chunkStart'
+    | 'chunkEnd'
+    | 'sessionId'
+    | 'isLastChunk';
 
   interface ImageUrlHandlerContext {
     url: string;
@@ -517,6 +525,96 @@ declare namespace RvImageOptimizeTypes {
     textValue?: string;
   }
 
+  interface UploadResumeState {
+    sessionId: string;
+    fileName: string;
+    fileSize: number;
+    chunkSize: number;
+    totalChunks: number;
+    completedChunks: number[];
+    updatedAt: number;
+    [key: string]: unknown;
+  }
+
+  interface UploadResumeStore {
+    load: (sessionId: string, context?: Record<string, unknown>) => UploadResumeState | null | Promise<UploadResumeState | null>;
+    save: (sessionId: string, state: UploadResumeState, context?: Record<string, unknown>) => void | Promise<void>;
+    remove: (sessionId: string, context?: Record<string, unknown>) => void | Promise<void>;
+  }
+
+  interface ChunkUploadFieldNames {
+    sessionId?: string | null;
+    chunkIndex?: string | null;
+    chunkNumber?: string | null;
+    totalChunks?: string | null;
+    chunkSize?: string | null;
+    chunkStart?: string | null;
+    chunkEnd?: string | null;
+    isLastChunk?: string | null;
+  }
+
+  interface ChunkUploadResolveResult {
+    sessionId?: string;
+    uploadedChunks?: number[];
+    resumeState?: Partial<UploadResumeState> | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  }
+
+  interface ChunkUploadOptions {
+    enabled?: boolean;
+    chunkSize?: number;
+    minFileSize?: number;
+    concurrency?: number;
+    resume?: boolean;
+    persistResume?: boolean;
+    appendDefaultFields?: boolean;
+    cleanupOnSuccess?: boolean;
+    fileFieldKey?: string;
+    fields?: ChunkUploadFieldNames;
+    sessionId?: string | ((context: Record<string, unknown>) => string | Promise<string>);
+    resolveSession?: (context: Record<string, unknown>) => ChunkUploadResolveResult | void | Promise<ChunkUploadResolveResult | void>;
+    completeUpload?: (context: Record<string, unknown>) => unknown;
+    shouldSkipChunk?: (context: Record<string, unknown>) => boolean | Promise<boolean>;
+    onChunkComplete?: (context: Record<string, unknown>) => void | Promise<void>;
+    resumeStore?: UploadResumeStore;
+    storageKeyPrefix?: string;
+  }
+
+  interface NormalizedChunkUploadOptions {
+    enabled: boolean;
+    chunkSize: number;
+    minFileSize: number;
+    concurrency: number;
+    resume: boolean;
+    persistResume: boolean;
+    appendDefaultFields: boolean;
+    cleanupOnSuccess: boolean;
+    fileFieldKey: string;
+    fields: ChunkUploadFieldNames;
+    sessionId: ChunkUploadOptions['sessionId'];
+    resolveSession: ChunkUploadOptions['resolveSession'];
+    completeUpload: ChunkUploadOptions['completeUpload'];
+    shouldSkipChunk: ChunkUploadOptions['shouldSkipChunk'];
+    onChunkComplete: ChunkUploadOptions['onChunkComplete'];
+    resumeStore: UploadResumeStore;
+  }
+
+  interface ChunkUploadChunkDescriptor {
+    chunkIndex: number;
+    chunkNumber: number;
+    totalChunks: number;
+    chunkSize: number;
+    chunkStart: number;
+    chunkEnd: number;
+    isLastChunk: boolean;
+  }
+
+  interface ChunkUploadResultItem extends ChunkUploadChunkDescriptor {
+    skipped?: boolean;
+    resumed?: boolean;
+    result?: UploadRequestResult;
+  }
+
   interface UploadConfig {
     url?: string;
     method?: string;
@@ -545,6 +643,7 @@ declare namespace RvImageOptimizeTypes {
     timeoutMs?: number;
     timeout?: number;
     signal?: AbortSignal | null;
+    chunkUpload?: ChunkUploadOptions;
   }
 
   interface NormalizedUploadConfig {
@@ -566,6 +665,7 @@ declare namespace RvImageOptimizeTypes {
     transformResponse: UploadConfig['transformResponse'];
     timeoutMs: number;
     signal: AbortSignal | null;
+    chunkUpload: NormalizedChunkUploadOptions;
   }
 
   interface UploadContext {
@@ -580,6 +680,14 @@ declare namespace RvImageOptimizeTypes {
     compressedFileSize?: number;
     savedSize?: number | string;
     savedPercentage?: number | string;
+    chunkIndex?: number | string;
+    chunkNumber?: number | string;
+    totalChunks?: number | string;
+    chunkSize?: number | string;
+    chunkStart?: number | string;
+    chunkEnd?: number | string;
+    sessionId?: string;
+    isLastChunk?: boolean;
     [key: string]: unknown;
   }
 
@@ -591,10 +699,15 @@ declare namespace RvImageOptimizeTypes {
   }
 
   interface UploadPayloadPreview {
-    mode: 'formFields' | 'jsonTemplate';
-    headers: Record<string, string>;
-    body: unknown;
+    config?: NormalizedUploadConfig;
     entries?: UploadPayloadPreviewEntry[];
+    chunkUpload?: {
+      enabled: boolean;
+      sessionId: string;
+      totalChunks: number;
+      previewChunkIndex: number;
+      previewChunkSize: number;
+    };
     [key: string]: unknown;
   }
 
@@ -607,6 +720,14 @@ declare namespace RvImageOptimizeTypes {
     rawData?: unknown;
     requestEntries?: UploadPayloadPreviewEntry[];
     attempts?: number;
+    uploadMode?: 'single' | 'chunked';
+    chunked?: boolean;
+    sessionId?: string;
+    chunkCount?: number;
+    uploadedChunks?: number[];
+    skippedChunks?: number[];
+    chunkResults?: ChunkUploadResultItem[];
+    resumeUsed?: boolean;
   }
 
   interface CompressAndUploadProgress {
@@ -678,6 +799,14 @@ declare module 'rv-image-optimize' {
   export interface LazyImageProps extends RvImageOptimizeTypes.LazyImageProps {}
   export interface ProgressiveImageProps extends RvImageOptimizeTypes.ProgressiveImageProps {}
   export interface UploadFormField extends RvImageOptimizeTypes.UploadFormField {}
+  export interface UploadResumeState extends RvImageOptimizeTypes.UploadResumeState {}
+  export interface UploadResumeStore extends RvImageOptimizeTypes.UploadResumeStore {}
+  export interface ChunkUploadFieldNames extends RvImageOptimizeTypes.ChunkUploadFieldNames {}
+  export interface ChunkUploadResolveResult extends RvImageOptimizeTypes.ChunkUploadResolveResult {}
+  export interface ChunkUploadOptions extends RvImageOptimizeTypes.ChunkUploadOptions {}
+  export interface NormalizedChunkUploadOptions extends RvImageOptimizeTypes.NormalizedChunkUploadOptions {}
+  export interface ChunkUploadChunkDescriptor extends RvImageOptimizeTypes.ChunkUploadChunkDescriptor {}
+  export interface ChunkUploadResultItem extends RvImageOptimizeTypes.ChunkUploadResultItem {}
   export interface UploadConfig extends RvImageOptimizeTypes.UploadConfig {}
   export interface NormalizedUploadConfig extends RvImageOptimizeTypes.NormalizedUploadConfig {}
   export interface UploadContext extends RvImageOptimizeTypes.UploadContext {}

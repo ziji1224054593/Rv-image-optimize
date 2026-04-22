@@ -1,0 +1,48 @@
+{
+  "uploadConfig": {
+    "url": "https://example.com/admin/upload/chunk",
+    "method": "POST",
+    "authorization": "Bearer replace-with-your-token",
+    "contentType": "",
+    "headers": {
+      "X-App-Id": "demo-app"
+    },
+    "dataMode": "formFields",
+    "fileFieldKey": "chunkFile",
+    "formFields": [
+      { "key": "chunkFile", "valueType": "file" },
+      { "key": "originName", "valueType": "originalFileName" },
+      { "key": "sessionId", "valueType": "sessionId" },
+      { "key": "chunkIndex", "valueType": "chunkIndex" },
+      { "key": "chunkNumber", "valueType": "chunkNumber" },
+      { "key": "totalChunks", "valueType": "totalChunks" },
+      { "key": "chunkSize", "valueType": "chunkSize" },
+      { "key": "chunkStart", "valueType": "chunkStart" },
+      { "key": "chunkEnd", "valueType": "chunkEnd" },
+      { "key": "isLastChunk", "valueType": "isLastChunk" }
+    ],
+    "chunkUpload": {
+      "enabled": true,
+      "chunkSize": 5242880,
+      "minFileSize": 5242880,
+      "concurrency": 2,
+      "resume": true,
+      "persistResume": true,
+      "cleanupOnSuccess": true,
+      "fileFieldKey": "chunkFile",
+      "fields": {
+        "sessionId": "sessionId",
+        "chunkIndex": "chunkIndex",
+        "chunkNumber": "chunkNumber",
+        "totalChunks": "totalChunks",
+        "chunkSize": "chunkSize",
+        "chunkStart": "chunkStart",
+        "chunkEnd": "chunkEnd",
+        "isLastChunk": "isLastChunk"
+      }
+    }
+  },
+  "fileMeta": {
+    "sourceFileName": "origin-demo.png"
+  }
+}

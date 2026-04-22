@@ -8,13 +8,18 @@
 
 ### 改进
 
+- 本次版本重点补强上传链路的工程能力：`upload-core` / `upload` 现已支持可选的分片上传 / 断点续传，可通过 `chunkUpload` 配置开启分片并发、续传状态持久化、上传会话初始化、已上传分片恢复以及上传完成后的合并 hook。
+- 扩展上传动态字段与结果结构，新增 `sessionId`、`chunkIndex`、`chunkNumber`、`totalChunks`、`chunkSize`、`chunkStart`、`chunkEnd`、`isLastChunk` 等分片字段，以及 `chunked`、`uploadedChunks`、`skippedChunks`、`chunkResults`、`resumeUsed` 等结果摘要，方便业务侧直接对接服务端分片协议。
 - 新增 CLI 参数 `--target-size-bytes` 与 `--max-bytes`，让压缩命令和 `pipeline` 可以直接按目标体积或体积上限执行压缩，不必只依赖固定 `quality`。
-- 新增 CLI 参数 `--timeout-ms`，让 `upload` / `pipeline` 的单次上传请求具备显式超时保护，降低批量任务长时间卡住的风险。
+- 新增 CLI 参数 `--timeout-ms`，让 `upload` / `pipeline` 的单次上传请求具备显式超时保护，降低批量任务在弱网或异常接口下长时间卡住的风险。
 - 修正 CLI 帮助路由行为；现在 `rv-image-optimize <input> --help` 会正确显示压缩帮助页，并与 `upload` / `pipeline` 子命令保持一致。
+- 在 `example/App.jsx` 的“核心升级功能预览”中新增分片上传 / 断点续传演示卡片，可直接看到会话初始化、跳过已上传分片、继续上传和完成合并的完整流程日志。
 
 ### 文档
 
 - 更新 `README.md`、`AGENT_INTEGRATION.md`、`AGENTS.md`、`AI_TOOLKIT.md`、`NODE_CLI_COMPRESS.md`、`MULTI_LANGUAGE_CLI_USAGE.md` 与 skill 文档，统一补充目标体积压缩、上传超时与 Agent/skills 的推荐调用方式。
+- 更新 `UPLOAD_PIPELINE.md`，补充分片上传 / 断点续传的配置结构、动态字段、CLI 配置文件示例、会话恢复 / 完成 hook 用法以及业务接入建议。
+- 新增 `upload.chunk.config.example.json` 与 `upload.chunk.example.mjs`，分别提供纯 CLI 配置模板和带 `resolveSession` / `completeUpload` / 文件型 `resumeStore` 的完整 Node API 示例。
 - 更新版本公告来源，使预览页“最新版本公告”同步切换到 `v3.0.30`。
 
 ## v3.0.22

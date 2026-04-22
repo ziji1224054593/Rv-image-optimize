@@ -160,6 +160,12 @@ rv-image-optimize ./images --output-dir ./compressed --json
 rv-image-optimize ./images --output-dir ./compressed --format webp --target-size-bytes 153600 --json
 ```
 
+### 通过配置文件执行分片上传 / 断点续传
+
+```bash
+rv-image-optimize upload ./large-assets --config ./upload.chunk.config.json --timeout-ms 10000 --json
+```
+
 ## CLI 参数
 
 - `--output <file>`: 单文件模式的精确输出文件
@@ -188,4 +194,5 @@ rv-image-optimize ./images --output-dir ./compressed --format webp --target-size
 - 如果你需要“压缩后上传”编排：
   - 浏览器端用 `rv-image-optimize/upload`
   - Node/CLI 端上传用 `rv-image-optimize/upload-core`
+- 如果你需要分片上传 / 断点续传，优先把 `chunkUpload` 写进 `--config` JSON 文件，再通过 `rv-image-optimize upload` 或 `rv-image-optimize pipeline` 调用
 - 如果你需要让 `Cursor`、`Claude Code` 或 skills 型 Agent 调用本工具，详见 [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md)

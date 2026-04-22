@@ -29,6 +29,7 @@ An image compression, upload, and format-conversion skill powered by `rv-image-o
 - 压缩时限制尺寸 / Resize while compressing with max width and height
 - 通过 `upload` 子命令按 `FormData` 配置上传文件 / Upload files through the `upload` subcommand with `FormData` config
 - 通过 `pipeline` 子命令一条命令完成“压缩 + 上传” / Complete "compress + upload" in one command with the `pipeline` subcommand
+- 通过 `chunkUpload` 配置执行分片上传 / 断点续传 / Run chunked and resumable uploads through `chunkUpload` config
 - 输出结构化 JSON 结果 / Return structured JSON summaries for agents
 - 默认安全输出到新目录 / Default to safe output in a new directory
 
@@ -45,6 +46,8 @@ An image compression, upload, and format-conversion skill powered by `rv-image-o
 - “让 Agent / CLI 自动处理图片”
 - “压缩后上传到接口”
 - “按接口配置上传文件”
+- “大文件分片上传”
+- “断点续传”
 
 Use this skill when the user asks to:
 
@@ -56,6 +59,8 @@ Use this skill when the user asks to:
 - run image optimization from an agent or CLI workflow
 - upload files to an API through CLI
 - compress files and immediately upload them
+- perform chunked uploads for large files
+- resume interrupted uploads
 
 ## 默认策略 / Default behavior
 
@@ -65,6 +70,7 @@ Use this skill when the user asks to:
 - 使用 `--json` 方便 Agent 汇总结果
 - 默认不删除原图
 - 默认不替换原图
+- 大文件上传优先把 `chunkUpload` 写进 `--config`
 
 Preferred command:
 
@@ -109,6 +115,7 @@ If the user wants to preserve source files, always choose `--output-dir`.
 
 - 当前只保留 `FormData` 请求方式
 - 复杂上传字段优先写进 `--config` JSON 文件
+- 大文件 / 可恢复上传优先使用 `chunkUpload` 配置块
 - `Authorization`、`Cookie`、`Content-Type` 优先用配置文件显式字段表达
 - `Content-Type` 在 `FormData` 模式下通常建议留空，让运行时自动生成 boundary
 
@@ -150,6 +157,12 @@ rv-image-optimize "./images" --format webp --quality 82 --replace-original --jso
 rv-image-optimize upload "./dist/demo.webp" --config "./upload.config.json" --json
 ```
 
+### 分片上传 / 断点续传 / Chunked resumable upload
+
+```bash
+rv-image-optimize upload "./large-assets" --config "./upload.chunk.config.json" --timeout-ms 10000 --json
+```
+
 ### 压缩后直接上传 / Compress then upload
 
 ```bash
@@ -179,5 +192,6 @@ rv-image-optimize upload "./dist/demo.webp" --config "./upload.config.json" --pr
 - 默认质量：`82`
 - 更小体积优先且接受更慢编码时：`avif`
 - 上传任务默认优先使用 `--config`
+- 大文件上传默认优先使用 `chunkUpload`
 - 压缩后上传默认优先使用 `pipeline`
 - 如需更多示例和参数说明，见 [reference.md](reference.md)

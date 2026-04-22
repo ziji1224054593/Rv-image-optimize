@@ -23,6 +23,12 @@ npx rv-image-optimize ./images --output-dir ./compressed --format webp --quality
 npx rv-image-optimize upload ./dist/demo.webp --config ./upload.config.json --json
 ```
 
+### 大文件分片上传 / 断点续传 / Chunked resumable upload
+
+```bash
+npx rv-image-optimize upload ./large-assets --config ./upload.chunk.config.json --timeout-ms 10000 --json
+```
+
 ### 一体化压缩后上传 / Compress then upload
 
 ```bash
@@ -37,6 +43,7 @@ npx rv-image-optimize pipeline ./images --format webp --quality 82 --config ./up
 - 结构化结果 / Structured result: `--json`
 - 高风险参数 / Destructive flags: 默认关闭 / off by default
 - 上传配置 / Upload config: 优先使用 `--config`
+- 大文件上传 / Large file uploads: 优先把 `chunkUpload` 写进 `--config`
 - 请求体方式 / Request body: 仅保留 `FormData`
 
 ## 支持的输出格式 / Supported output formats
@@ -100,11 +107,36 @@ Prefer placing complex API definitions in `upload.config.json` instead of embedd
 }
 ```
 
+### 分片上传配置结构 / Chunk upload config shape
+
+```json
+{
+  "uploadConfig": {
+    "url": "https://example.com/admin/upload/chunk",
+    "method": "POST",
+    "fileFieldKey": "chunkFile",
+    "formFields": [
+      { "key": "chunkFile", "valueType": "file" },
+      { "key": "sessionId", "valueType": "sessionId" },
+      { "key": "chunkIndex", "valueType": "chunkIndex" },
+      { "key": "totalChunks", "valueType": "totalChunks" }
+    ],
+    "chunkUpload": {
+      "enabled": true,
+      "chunkSize": 5242880,
+      "concurrency": 2,
+      "resume": true
+    }
+  }
+}
+```
+
 说明：
 
 - 当前只保留 `FormData` 请求方式
 - `contentType` 在 `FormData` 模式下通常建议留空，让运行时自动生成 multipart boundary
 - 若接口文档明确要求手动设置 `Content-Type`，再显式传入
+- 若需要分片上传 / 断点续传，优先把 `chunkUpload` 放进配置文件，而不是把长 JSON 直接写进提示词
 
 ## 选择建议 / Decision guide
 
@@ -136,6 +168,12 @@ rv-image-optimize "{input}" --output-dir "{outputDir}" --format webp --quality 8
 
 ```bash
 rv-image-optimize upload "{input}" --config "{configPath}" --json
+```
+
+### 大文件分片上传 / Chunked upload for large files
+
+```bash
+rv-image-optimize upload "{input}" --config "{chunkConfigPath}" --timeout-ms 10000 --json
 ```
 
 ### 压缩后直传接口 / Compress and upload in one step

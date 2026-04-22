@@ -55,6 +55,7 @@ Agent / skills 现在可以直接通过 CLI 使用这次新增的核心能力：
 - `--target-size-bytes <number>`: 指定目标输出体积，CLI 会自动探测质量 / 格式以尽量逼近目标
 - `--max-bytes <number>`: 指定输出体积上限
 - `--timeout-ms <number>`: 为 `upload` / `pipeline` 的单次上传请求增加超时保护，避免任务长时间卡住
+- `chunkUpload`（写入 `--config` JSON）: 为 `upload` / `pipeline` 开启分片上传 / 断点续传，会话初始化与完成合并
 
 ## 为什么推荐加 `--json`
 
@@ -107,6 +108,12 @@ npx rv-image-optimize upload ./assets/images/demo.webp --url https://example.com
 npx rv-image-optimize upload ./assets/images-compressed --config ./upload.config.json --json
 ```
 
+### 通过配置文件执行分片上传 / 断点续传
+
+```bash
+npx rv-image-optimize upload ./assets/videos --config ./upload.chunk.config.json --timeout-ms 10000 --json
+```
+
 ### 仅预览上传字段
 
 ```bash
@@ -147,6 +154,7 @@ npx rv-image-optimize pipeline ./assets/images --format webp --target-size-bytes
 - 默认不要删除或替换原图
 - 用户给出目标体积时优先用 `--target-size-bytes`
 - 上传任务建议显式补 `--timeout-ms`
+- 大文件上传优先把 `chunkUpload` 写进 `--config` JSON 文件
 - 只有用户明确要求时才允许 `--delete-original` 或 `--replace-original`
 
 ## 推荐 skill 规则
@@ -163,6 +171,7 @@ npx rv-image-optimize pipeline ./assets/images --format webp --target-size-bytes
 - 如果要调上传接口，优先用 `rv-image-optimize upload`
 - 如果要一条命令完成压缩后上传，优先用 `rv-image-optimize pipeline`
 - 复杂上传字段优先放到 `--config` JSON 文件
+- 大文件或可恢复上传优先放到 `chunkUpload` 配置块，不要把长 JSON 直接拼命令行
 - 推荐在配置文件里显式写 `authorization` / `cookie` / `contentType`
 - 上传命令建议显式补 `--timeout-ms`
 
@@ -218,6 +227,12 @@ rv-image-optimize "{input}" --format webp --quality 82 --replace-original --json
 rv-image-optimize upload "{input}" --config "{configPath}" --timeout-ms 10000 --json
 ```
 
+### 分片上传模式
+
+```bash
+rv-image-optimize upload "{input}" --config "{chunkConfigPath}" --timeout-ms 10000 --json
+```
+
 ### 一体化压缩上传模式
 
 ```bash
@@ -233,6 +248,7 @@ rv-image-optimize pipeline "{input}" --format webp --target-size-bytes 153600 --
 - `--delete-original` 需要用户明确确认
 - `--replace-original` 需要用户明确确认
 - 上传命令建议显式加 `--timeout-ms`
+- 大文件上传优先使用配置文件中的 `chunkUpload`
 - 失败项必须单独汇报
 - 上传请求的复杂字段优先写进配置文件，不要在提示词里拼接超长 JSON
 - 如果接口文档包含 `Authorization`、`Cookie`、`Content-Type`，优先写进配置文件的显式字段，而不是完全依赖通用 `headers`
@@ -273,8 +289,15 @@ rv-image-optimize upload ./exports/images-webp --config ./upload.config.json --t
 rv-image-optimize pipeline ./exports/images --format webp --target-size-bytes 153600 --config ./upload.config.json --timeout-ms 10000 --json
 ```
 
+### 场景 6：AI Agent 执行大文件分片上传 / 断点续传
+
+```bash
+rv-image-optimize upload ./exports/videos --config ./upload.chunk.config.json --timeout-ms 10000 --json
+```
+
 ## 注意事项
 
 - `--replace-original` 是高风险动作，建议只在用户明确授权时执行
 - 如果需要上传链路联动，优先直接使用 `rv-image-optimize upload`；只有在你需要自定义脚本控制时再直接调用 `rv-image-optimize/upload-core`
+- 如果需要分片上传 / 断点续传，优先把 `chunkUpload` 写进配置文件，再让 Agent 调用 `upload` / `pipeline`
 - 浏览器环境不要调用这个 CLI 或 `node-compress` 子入口

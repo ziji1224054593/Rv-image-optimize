@@ -11,6 +11,7 @@
 - 浏览器侧无损压缩
 - Node 服务端图片压缩
 - CLI 批处理图片
+- CLI 分片上传 / 断点续传
 - Vite 项目打包阶段静态图片压缩
 
 ## 场景到入口映射
@@ -59,6 +60,7 @@
 - 默认不要替换原图
 - 用户给出目标体积时优先使用 `--target-size-bytes`
 - 上传任务建议显式补 `--timeout-ms`
+- 大文件上传优先把 `chunkUpload` 写进 `--config`
 
 只有用户明确要求时，才允许：
 
@@ -87,6 +89,12 @@ npx rv-image-optimize "./images" --format webp --quality 82 --replace-original -
 
 ```bash
 npx rv-image-optimize upload "./images-compressed" --config "./upload.config.json" --timeout-ms 10000 --json
+```
+
+如果需要让 Agent 执行大文件分片上传 / 断点续传：
+
+```bash
+npx rv-image-optimize upload "./large-assets" --config "./upload.chunk.config.json" --timeout-ms 10000 --json
 ```
 
 如果需要让 Agent 一条命令完成压缩后上传：
@@ -157,5 +165,6 @@ export default defineConfig({
 - 默认不要删除原图
 - 用户给目标体积时优先用 `--target-size-bytes`
 - 上传时建议加 `--timeout-ms`
+- 大文件上传优先把 `chunkUpload` 写进 `--config`
 - 只有用户明确要求时才允许删除或替换原图
 ```

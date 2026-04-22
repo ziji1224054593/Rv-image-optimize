@@ -46,6 +46,7 @@ npx rv-image-optimize "D:/images" --output-dir "D:/images-compressed" --format w
 - 优先使用绝对路径
 - 默认输出到新目录，不要默认替换原图
 - 有明确体积预算时优先使用 `--target-size-bytes`
+- 大文件上传优先把 `chunkUpload` 写进 `--config` JSON 文件
 - 只有用户明确要求时才使用 `--delete-original` 或 `--replace-original`
 - 统一处理非 `0` 退出码
 - 统一处理超时和 JSON 解析失败
@@ -224,6 +225,35 @@ npx rv-image-optimize "{input}" --output-dir "{outputDir}" --format webp --targe
 
 ```bash
 --timeout-ms 10000
+```
+
+如果需要执行大文件分片上传 / 断点续传，推荐改成通过配置文件调用：
+
+```bash
+npx rv-image-optimize upload "{input}" --config "{chunkConfigPath}" --timeout-ms 10000 --json
+```
+
+其中 `chunkConfigPath` 对应的 JSON 文件里可以放：
+
+```json
+{
+  "uploadConfig": {
+    "url": "https://example.com/admin/upload/chunk",
+    "fileFieldKey": "chunkFile",
+    "formFields": [
+      { "key": "chunkFile", "valueType": "file" },
+      { "key": "sessionId", "valueType": "sessionId" },
+      { "key": "chunkIndex", "valueType": "chunkIndex" },
+      { "key": "totalChunks", "valueType": "totalChunks" }
+    ],
+    "chunkUpload": {
+      "enabled": true,
+      "chunkSize": 5242880,
+      "concurrency": 2,
+      "resume": true
+    }
+  }
+}
 ```
 
 ## 何时考虑服务化

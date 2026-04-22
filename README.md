@@ -28,6 +28,8 @@ A high-performance, cross-framework image optimization and lazy-loading solution
 - ⚙️ 浏览器与服务端双压缩链路：既支持浏览器端压缩 / 无损压缩，也支持 `node-compress` 在 Node 环境原生处理图片。 / Dual compression paths for browser and server: supports browser-side compression / lossless compression and native Node processing through `node-compress`.
 - 📦 支持静态图片打包压缩：可通过 `rv-image-optimize/vite-plugin` 在 `build` 后自动优化 `dist` 内静态图片。 / Static asset build optimization: use `rv-image-optimize/vite-plugin` to optimize static images in `dist` after build.
 - 📤 上传链路可复用：提供 `upload-core` 和 `upload` 两层入口。 / Reusable upload pipeline: ships both `upload-core` and `upload` entry points.
+- 🧱 上传链路更可接业务：支持重试、超时、响应适配，以及通过配置实现分片上传 / 断点续传。 / Upload workflows are more production-ready with retry, timeout, response adaptation, and configurable chunked / resumable uploads.
+- 🧪 预览示例可直接验证新能力：示例页已内置目标体积压缩、上传超时、回调隔离和分片续传演示。 / The preview app now includes interactive demos for target-size compression, upload timeout, callback isolation, and chunked resumable uploads.
 - 💾 缓存体系完善：内置 IndexedDB + Worker 缓存能力，支持多库多表、自动过期和配额检测。 / Solid caching system: built-in IndexedDB + Worker caching with multi-database, multi-table, expiration, and quota checks.
 - 🧩 `JS / TS` 都可直接接入：从 `3.x` 开始提供官方 `.d.ts`。 / Ready for both `JS / TS`: official `.d.ts` files are included starting from `3.x`.
 - 🤖 Agent 集成友好：可直接接入 `Cursor`、`Claude Code`、skills 型 Agent，支持通过 CLI + `--json` 自动化压缩与上传。 / Agent-friendly integration: works well with `Cursor`, `Claude Code`, and skill-based agents, including CLI + `--json` automation for both compression and upload.
@@ -165,6 +167,9 @@ rv-image-optimize pipeline ./images --format webp --target-size-bytes 153600 --c
 
 复杂上传字段建议放进 `--config` 指向的 JSON 文件；如果只是临时增加少量字段，也可以重复传 `--header` 和 `--form-field`。  
 For more complex upload payloads, prefer a JSON file via `--config`; for a few ad hoc fields, repeat `--header` and `--form-field`.
+
+如果是大文件上传、分片上传或断点续传，建议把 `chunkUpload` 配置一并写进 `--config` JSON 文件。  
+For large files, chunked uploads, or resumable uploads, it is recommended to keep the `chunkUpload` settings in the same `--config` JSON file.
 
 ### Vite 静态图片打包压缩 / Vite Static Image Build Optimization
 

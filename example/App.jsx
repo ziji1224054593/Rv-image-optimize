@@ -138,6 +138,78 @@ async function createMockImageFile(label = 'demo-image') {
   });
 }
 
+function createMockChunkFile(label = 'chunk-demo', sizeInMb = 11) {
+  const byteLength = Math.max(1, Math.floor(sizeInMb * 1024 * 1024));
+  const bytes = new Uint8Array(byteLength);
+  for (let index = 0; index < bytes.length; index += 4096) {
+    bytes[index] = index % 251;
+  }
+
+  return new File([bytes], `${label}.bin`, {
+    type: 'application/octet-stream',
+    lastModified: Date.now(),
+  });
+}
+
+function createMockChunkUploadFetch(delayMs, options = {}) {
+  const {
+    onChunkRequest,
+  } = options;
+
+  return (url, requestOptions = {}) => new Promise((resolve, reject) => {
+    const timer = window.setTimeout(async () => {
+      try {
+        const formData = requestOptions.body;
+        const chunkFile = typeof formData?.get === 'function' ? formData.get('chunkFile') : null;
+        const payload = {
+          sessionId: formData?.get?.('sessionId') || 'unknown-session',
+          chunkIndex: Number(formData?.get?.('chunkIndex') ?? -1),
+          chunkNumber: Number(formData?.get?.('chunkNumber') ?? -1),
+          totalChunks: Number(formData?.get?.('totalChunks') ?? -1),
+          chunkSize: Number(formData?.get?.('chunkSize') ?? chunkFile?.size ?? 0),
+          chunkStart: Number(formData?.get?.('chunkStart') ?? 0),
+          chunkEnd: Number(formData?.get?.('chunkEnd') ?? 0),
+          isLastChunk: String(formData?.get?.('isLastChunk') || '') === 'true',
+          originalFileName: formData?.get?.('originName') || chunkFile?.name || 'unknown.bin',
+          uploadedChunkSize: chunkFile?.size || 0,
+        };
+
+        await onChunkRequest?.(payload);
+
+        resolve(new Response(JSON.stringify({
+          ok: true,
+          sessionId: payload.sessionId,
+          chunkIndex: payload.chunkIndex,
+          chunkNumber: payload.chunkNumber,
+          totalChunks: payload.totalChunks,
+          acceptedBytes: payload.uploadedChunkSize,
+        }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }));
+      } catch (error) {
+        reject(error);
+      }
+    }, delayMs);
+
+    const { signal } = requestOptions;
+    if (signal) {
+      if (signal.aborted) {
+        window.clearTimeout(timer);
+        reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+        return;
+      }
+
+      signal.addEventListener('abort', () => {
+        window.clearTimeout(timer);
+        reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    }
+  });
+}
+
 function CoreCapabilityUpgradeDemo() {
   const demoImageUrl = 'https://dummyimage.com/800x600/4a90e2/ffffff&text=Rv+Image+Optimize';
   const progressiveAbortRef = useRef(null);
@@ -152,6 +224,9 @@ function CoreCapabilityUpgradeDemo() {
   const [uploadTimeoutState, setUploadTimeoutState] = useState(null);
   const [uploadBatchState, setUploadBatchState] = useState(null);
   const [uploadDemoRunning, setUploadDemoRunning] = useState(false);
+  const [chunkUploadRunning, setChunkUploadRunning] = useState(false);
+  const [chunkUploadState, setChunkUploadState] = useState(null);
+  const [chunkUploadLogs, setChunkUploadLogs] = useState([]);
 
   useEffect(() => {
     registerImageUrlHandler({
@@ -176,6 +251,13 @@ function CoreCapabilityUpgradeDemo() {
       `${new Date().toLocaleTimeString()} ${message}`,
       ...prev,
     ].slice(0, 8));
+  }, []);
+
+  const appendChunkUploadLog = useCallback((message) => {
+    setChunkUploadLogs((prev) => [
+      `${new Date().toLocaleTimeString()} ${message}`,
+      ...prev,
+    ].slice(0, 12));
   }, []);
 
   const customHandlerPreview = useMemo(() => {
@@ -388,6 +470,95 @@ function CoreCapabilityUpgradeDemo() {
     }
   }, []);
 
+  const handleChunkUploadDemo = useCallback(async (resumeMode = true) => {
+    setChunkUploadRunning(true);
+    setChunkUploadState(null);
+    setChunkUploadLogs([]);
+
+    try {
+      const file = createMockChunkFile(resumeMode ? 'resume-demo' : 'fresh-demo', 11);
+      const resumedChunks = resumeMode ? [0] : [];
+      const acceptedChunks = [...resumedChunks];
+      appendChunkUploadLog(
+        `准备上传 ${file.name}（${formatFileSize(file.size)}），按 5MB 分片，预计 ${Math.ceil(file.size / (5 * 1024 * 1024))} 片`
+      );
+
+      const uploadResult = await uploadCompressedFile(file, {
+        sourceFileName: file.name,
+        sourceFileSize: file.size,
+      }, {
+        url: 'https://mock-upload.example/api/chunk',
+        timeoutMs: 2500,
+        retry: 0,
+        fetchImpl: createMockChunkUploadFetch(180, {
+          onChunkRequest: async (payload) => {
+            acceptedChunks.push(payload.chunkIndex);
+            appendChunkUploadLog(
+              `服务端接收分片 ${payload.chunkNumber}/${payload.totalChunks}，范围 ${payload.chunkStart}-${payload.chunkEnd}，本片 ${formatFileSize(payload.uploadedChunkSize)}`
+            );
+          },
+        }),
+        dataMode: 'formFields',
+        formFields: [
+          { key: 'chunkFile', valueType: 'file' },
+          { key: 'originName', valueType: 'originalFileName' },
+        ],
+        chunkUpload: {
+          enabled: true,
+          chunkSize: 5 * 1024 * 1024,
+          concurrency: 2,
+          resume: true,
+          fileFieldKey: 'chunkFile',
+          resolveSession: async ({ defaultSessionId, totalChunks }) => {
+            appendChunkUploadLog(
+              `初始化上传会话：${defaultSessionId}，服务端返回 ${totalChunks} 片方案，已完成分片：${resumedChunks.length > 0 ? resumedChunks.join(', ') : '无'}`
+            );
+            return {
+              sessionId: resumeMode ? 'resume-demo-session' : 'fresh-demo-session',
+              uploadedChunks: resumedChunks,
+            };
+          },
+          onChunkComplete: async ({ descriptor, uploadedChunks }) => {
+            appendChunkUploadLog(
+              `分片 ${descriptor.chunkNumber}/${descriptor.totalChunks} 上传完成，当前累计完成 ${uploadedChunks.length} 片`
+            );
+          },
+          completeUpload: async ({ sessionId, totalChunks, uploadedChunks, skippedChunks }) => {
+            appendChunkUploadLog(
+              `所有分片已就绪，调用完成合并接口：session=${sessionId}，上传 ${uploadedChunks.length}/${totalChunks} 片，跳过 ${skippedChunks.length} 片`
+            );
+            return {
+              ok: true,
+              status: 200,
+              statusText: 'OK',
+              url: 'https://mock-upload.example/final/chunk-demo.webp',
+              data: {
+                merged: true,
+                fileUrl: 'https://mock-upload.example/final/chunk-demo.webp',
+                acceptedChunks: [...new Set(acceptedChunks)].sort((left, right) => left - right),
+              },
+            };
+          },
+        },
+      });
+
+      setChunkUploadState({
+        sessionId: uploadResult.sessionId,
+        chunkCount: uploadResult.chunkCount,
+        uploadedChunks: uploadResult.uploadedChunks || [],
+        skippedChunks: uploadResult.skippedChunks || [],
+        resumeUsed: uploadResult.resumeUsed,
+        fileUrl: uploadResult.data?.fileUrl || uploadResult.url,
+      });
+    } catch (error) {
+      setChunkUploadState({
+        error: error.message,
+      });
+    } finally {
+      setChunkUploadRunning(false);
+    }
+  }, [appendChunkUploadLog]);
+
   return (
     <div style={{
       marginBottom: '40px',
@@ -398,7 +569,7 @@ function CoreCapabilityUpgradeDemo() {
     }}>
       <h2>核心升级功能预览</h2>
       <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
-        这一页把本次新增的核心能力直接做成可交互示例：URL 规则引擎、渐进式取消与去重、目标体积压缩，以及上传超时/回调隔离。
+        这一页把本次新增的核心能力直接做成可交互示例：URL 规则引擎、渐进式取消与去重、目标体积压缩，以及上传超时/回调隔离和分片续传。
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
@@ -529,6 +700,45 @@ function CoreCapabilityUpgradeDemo() {
               )}
             </div>
           )}
+        </div>
+
+        <div style={{ backgroundColor: 'white', border: '1px solid #e5e5e5', borderRadius: '8px', padding: '16px' }}>
+          <h3 style={{ marginTop: 0 }}>5. 分片上传 / 断点续传</h3>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+            使用 mock 服务演示 `chunkUpload`：先初始化会话，再跳过已上传分片，继续上传剩余分片，最后调用完成合并。
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+            <button onClick={() => handleChunkUploadDemo(false)} disabled={chunkUploadRunning} style={{ padding: '8px 12px' }}>
+              {chunkUploadRunning ? '运行中...' : '模拟全新分片上传'}
+            </button>
+            <button onClick={() => handleChunkUploadDemo(true)} disabled={chunkUploadRunning} style={{ padding: '8px 12px' }}>
+              {chunkUploadRunning ? '运行中...' : '模拟断点续传'}
+            </button>
+          </div>
+          {chunkUploadState && (
+            <div style={{ fontSize: '12px', backgroundColor: chunkUploadState.error ? '#fff2f0' : '#f5f5f5', padding: '10px', borderRadius: '4px', marginBottom: '10px', lineHeight: 1.6 }}>
+              {chunkUploadState.error ? (
+                <div>分片演示失败：{chunkUploadState.error}</div>
+              ) : (
+                <>
+                  <div>会话 ID：{chunkUploadState.sessionId}</div>
+                  <div>总分片数：{chunkUploadState.chunkCount}</div>
+                  <div>最终已上传分片：{chunkUploadState.uploadedChunks.join(', ') || '无'}</div>
+                  <div>恢复跳过分片：{chunkUploadState.skippedChunks.join(', ') || '无'}</div>
+                  <div>是否命中续传：{chunkUploadState.resumeUsed ? '是' : '否'}</div>
+                  <div>完成文件地址：{chunkUploadState.fileUrl}</div>
+                  <div style={{ marginTop: '6px', color: '#666' }}>
+                    这套配置同样可以直接给 `upload-core`、`upload`、`pipeline` 使用。
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          <div style={{ fontSize: '12px', maxHeight: '180px', overflowY: 'auto', backgroundColor: '#fafafa', border: '1px solid #eee', padding: '8px', borderRadius: '4px' }}>
+            {chunkUploadLogs.length === 0 ? '等待开始...' : chunkUploadLogs.map((log, index) => (
+              <div key={`${log}-${index}`} style={{ marginBottom: '6px' }}>{log}</div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
