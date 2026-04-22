@@ -2,12 +2,28 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
+const exampleAliases = [
+  // Keep the preview app on the public package surface instead of aliasing internal lib/* files.
+  { find: 'rv-image-optimize/lossless', replacement: resolve(__dirname, 'src/entries/lossless.js') },
+  { find: 'rv-image-optimize/cache', replacement: resolve(__dirname, 'src/entries/cache.js') },
+  { find: 'rv-image-optimize/upload-core', replacement: resolve(__dirname, 'src/entries/upload-core.js') },
+  { find: 'rv-image-optimize/upload', replacement: resolve(__dirname, 'src/entries/upload.js') },
+  { find: 'rv-image-optimize/utils-only', replacement: resolve(__dirname, 'src/utils-only.js') },
+  { find: 'rv-image-optimize/LazyImage', replacement: resolve(__dirname, 'src/LazyImage.jsx') },
+  { find: 'rv-image-optimize/ProgressiveImage', replacement: resolve(__dirname, 'src/ProgressiveImage.jsx') },
+  { find: 'rv-image-optimize/styles', replacement: resolve(__dirname, 'src/LazyImage.css') },
+  { find: 'rv-image-optimize', replacement: resolve(__dirname, 'src/index.js') },
+];
+
 export default defineConfig(({ command, mode }) => {
   // 开发模式：应用模式
   if (command === 'serve') {
     return {
       plugins: [react()],
       root: '.',
+      resolve: {
+        alias: exampleAliases,
+      },
       server: {
         port: 3000,
         open: true,
@@ -20,6 +36,9 @@ export default defineConfig(({ command, mode }) => {
     return {
       plugins: [react()],
       root: '.',
+      resolve: {
+        alias: exampleAliases,
+      },
       build: {
         outDir: 'dist-static',
         emptyOutDir: true,
@@ -49,18 +68,23 @@ export default defineConfig(({ command, mode }) => {
     };
   }
   
-  // 构建模式：库模式（npm 包）
+  // 构建模式：库模式（npm 包）- 完整版本（包含 React 组件）
   return {
     plugins: [react()],
     build: {
       lib: {
         entry: resolve(__dirname, 'src/index.js'),
         name: 'ImageOptimize',
-        formats: ['es', 'cjs', 'umd'],
-        fileName: (format) => `image-optimize.${format}.js`,
+        formats: ['es', 'cjs'],
+        fileName: (format) => (format === 'cjs' ? 'image-optimize.cjs' : 'image-optimize.es.js'),
       },
       rollupOptions: {
-        external: ['react', 'react-dom'],
+        external: [
+          'react',
+          'react-dom',
+          'react/jsx-runtime',
+          'react/jsx-dev-runtime',
+        ],
         output: {
           globals: {
             react: 'React',

@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
-import '../src/LazyImage.css';
+import 'rv-image-optimize/styles';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 

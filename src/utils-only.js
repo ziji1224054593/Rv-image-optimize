@@ -1,3 +1,6 @@
+// 只导出工具函数，不包含 React 组件
+// 供 Vue、原生 JS 等非 React 项目使用
+
 // 导出图片优化工具函数
 export {
   optimizeImageUrl,
@@ -22,13 +25,6 @@ export {
   compressImageInBrowser,
   dataURLToBlob,
 } from '../lib/imageOptimize.js';
-
-// 导出 LazyImage 组件
-export { default as LazyImage } from './LazyImage.jsx';
-export { default } from './LazyImage.jsx';
-
-// 导出 ProgressiveImage 组件
-export { default as ProgressiveImage } from './ProgressiveImage.jsx';
 
 // 导出通用缓存相关函数
 export {
@@ -71,5 +67,6 @@ export {
   compressAndUploadFiles,
 } from '../lib/uploadPipeline.js';
 
-// 导入样式（需要在构建时处理）
-import './LazyImage.css';
+// 注意：不导出 React 组件（LazyImage 和 ProgressiveImage）
+// 如果需要使用组件，请在 React 项目中使用，或使用工具函数自行实现
+

@@ -5,10 +5,10 @@
 **不需要发布整个项目！** npm 包只会发布必要的文件，通过 `package.json` 中的 `files` 字段和 `.npmignore` 文件控制。
 
 ### 会被发布的文件：
+- ✅ `bin/` - CLI 入口文件（`rv-image-optimize` 命令）
 - ✅ `dist/` - 构建后的文件（用户实际使用的文件）
-- ✅ `src/` - 源代码（供用户按需导入）
-- ✅ `lib/` - 工具库文件（imageOptimize.js、imageCache.js、losslessCompress.js）
-- ✅ `*.md` - 文档文件（README.md、ProgressiveImage.md 等）
+- ✅ `types/` - 类型声明文件
+- ✅ `README.md` - npm 首页说明文档
 - ✅ `LICENSE` - 许可证文件
 
 ### 不会被发布的文件：
@@ -17,6 +17,7 @@
 - ❌ `dist-static/` - 静态构建文件（开发用）
 - ❌ `vite.config.js` - 构建配置（用户不需要）
 - ❌ `package-lock.json` - 锁定文件（用户会自己生成）
+- ❌ `除 README.md 外的其他 .md 文档` - 仓库文档保留在源码仓库中，不跟随 npm 包发布
 - ❌ `.git/` - Git 仓库文件
 - ❌ 其他开发工具配置文件
 
@@ -53,8 +54,15 @@ ls -la dist/
 
 应该看到以下文件：
 - `image-optimize.es.js` (ES模块)
-- `image-optimize.cjs.js` (CommonJS)
-- `image-optimize.umd.js` (UMD)
+- `image-optimize.cjs` (CommonJS)
+- `image-optimize-utils.es.js` (工具函数 ESM)
+- `image-optimize-utils.cjs` (工具函数 CommonJS)
+- `lazy-image.es.js`、`progressive-image.es.js` (React 组件子入口)
+- `lossless.es.js`、`cache.es.js`、`upload-core.es.js`、`upload.es.js`
+- `node-compress.es.js` / `node-compress.cjs`
+- `vite-plugin.es.js`
+- `webpack-plugin.es.js` / `webpack-plugin.cjs`
+- `chunks/` - 多入口共享运行时代码
 - `style.css` (样式文件)
 
 4. **验证发布内容**（重要）：
@@ -63,6 +71,10 @@ npm pack --dry-run
 ```
 
 检查输出，确保只包含必要的文件。
+
+补充说明：
+- 当前本地开发示例虽然会通过 `vite.config.js` 做本地 alias，但 alias 已统一收敛到 `src/entries/*` / `src/index.js` / `src/utils-only.js` 这些公开入口包装层，不再直接指向 `lib/*` 内部实现。
+- 发布前建议先执行一次 `npm run dev` 做手工验证，重点确认示例侧使用的仍然是 `rv-image-optimize` 暴露的正式入口语义，而不是新的内部源码路径。
 
 ## 发布步骤
 
