@@ -2697,7 +2697,7 @@ function ProgressiveLoadDemo() {
 
 // 简单的 Tabs 组件
 function Tabs({ children, tabs }) {
-  const [activeTab, setActiveTab] = useState(0); // 默认打开第4个Tab（渐进式加载示例）
+  const [activeTab, setActiveTab] = useState(0); // 默认打开第1个Tab（图片优化上传工具演示）
 
   return (
     <div>
@@ -2744,9 +2744,19 @@ function App() {
       <PageVisitCounter />
       <ReleaseAnnouncementPanel />
 
-      <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '模糊到清晰的渐进式加载示例', '核心升级功能预览']}>
-      {/* <Tabs tabs={['LazyImage 组件示例', '图片优化上传工具演示', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}> */}
-        {/* 第一页：LazyImage 组件示例 */}
+      <Tabs tabs={['图片优化上传工具演示', '核心升级功能预览', 'LazyImage 组件示例', '模糊到清晰的渐进式加载示例']}>
+      {/* <Tabs tabs={['图片优化上传工具演示', '核心升级功能预览', '在线图片优化展示', '渐进式加载示例', '模糊到清晰的渐进式加载示例']}> */}
+        {/* 第一页：图片优化工具演示 */}
+        <div>
+          <LosslessCompressDemo />
+        </div>
+
+        {/* 第二页：核心升级功能预览 */}
+        <div>
+          <CoreCapabilityUpgradeDemo />
+        </div>
+
+        {/* 第三页：LazyImage 组件示例 */}
         <div>
           <OnlineImageOptimizeDemo />
 
@@ -2801,11 +2811,6 @@ function App() {
           </div>
         </div>
 
-        {/* 第三页：图片优化工具演示 */}
-        <div>
-          <LosslessCompressDemo />
-        </div>
-
         {/* 第三页 渐进式加载示例 */}
         {/* <div>
           <ProgressiveLoadDemo />
@@ -2814,10 +2819,6 @@ function App() {
         {/* 第四页 模糊到清晰的渐进式加载示例 */}
         <div>
           <BlurToClearDemo />
-        </div>
-
-        <div>
-          <CoreCapabilityUpgradeDemo />
         </div>
       </Tabs>
     </div>
